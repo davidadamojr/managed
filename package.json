@@ -1,0 +1,20 @@
+{
+  "name": "managed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Managed — a single-player, turn-based engineering-management simulation. Pure-TypeScript deterministic engine + thin desktop-web view.",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "harness": "tsx harness/index.ts"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
