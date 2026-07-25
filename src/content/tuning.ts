@@ -20,6 +20,24 @@ export interface TuningConstants {
     /** Engineers on the team, fixed for the run. */
     readonly teamSize: number;
   };
+  readonly roster: {
+    /**
+     * Morale and burnout every engineer starts a run at. Fixed and uniform on
+     * purpose: skills differentiate the team, while a known emotional baseline lets
+     * the delayed echo build from play rather than from seed noise.
+     */
+    readonly startingMorale: number;
+    readonly startingBurnout: number;
+    /** Proficiency band [min, max] for an engineer's one primary (specialty) skill. */
+    readonly primarySkillMin: number;
+    readonly primarySkillMax: number;
+    /**
+     * Band [min, max] for non-primary skills. Reaches down to zero so a poor-fit
+     * assignment is always *possible*, never forced.
+     */
+    readonly secondarySkillMin: number;
+    readonly secondarySkillMax: number;
+  };
   readonly attention: {
     /** Managerial attention points available each sprint. */
     readonly poolPerSprint: number;
@@ -33,6 +51,9 @@ export interface TuningConstants {
   readonly backlog: {
     /** Backlog size as a multiple of what the team can plausibly clear (>1). */
     readonly overCapacityRatio: number;
+    /** Effort-point band [min, max] for a generated ticket. */
+    readonly ticketSizeMin: number;
+    readonly ticketSizeMax: number;
   };
   readonly roadmap: {
     /** Number of roadmap tickets — the soft, never-fail target. */
@@ -68,6 +89,14 @@ const TUNING: TuningConstants = {
     sprints: 6,
     teamSize: 4,
   },
+  roster: {
+    startingMorale: 65,
+    startingBurnout: 10,
+    primarySkillMin: 60,
+    primarySkillMax: 90,
+    secondarySkillMin: 0,
+    secondarySkillMax: 65,
+  },
   attention: {
     poolPerSprint: 3,
     actionCost: {
@@ -78,6 +107,8 @@ const TUNING: TuningConstants = {
   },
   backlog: {
     overCapacityRatio: 1.5,
+    ticketSizeMin: 3,
+    ticketSizeMax: 8,
   },
   roadmap: {
     size: 5,

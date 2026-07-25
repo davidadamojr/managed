@@ -17,6 +17,20 @@ describe('tuning constants — candidate values', () => {
     expect(t.run.teamSize).toBe(4);
   });
 
+  it('carries the candidate roster construction shape', () => {
+    expect(t.roster.startingMorale).toBe(65);
+    expect(t.roster.startingBurnout).toBe(10);
+    expect(t.roster.primarySkillMin).toBe(60);
+    expect(t.roster.primarySkillMax).toBe(90);
+    expect(t.roster.secondarySkillMin).toBe(0);
+    expect(t.roster.secondarySkillMax).toBe(65);
+  });
+
+  it('carries the candidate ticket sizing', () => {
+    expect(t.backlog.ticketSizeMin).toBe(3);
+    expect(t.backlog.ticketSizeMax).toBe(8);
+  });
+
   it('carries the candidate attention economy', () => {
     expect(t.attention.poolPerSprint).toBe(3);
     expect(t.attention.actionCost.oneOnOne).toBe(1);
@@ -49,6 +63,26 @@ describe('tuning constants — design invariants', () => {
   it('keeps the team small and fixed at 3–4 engineers', () => {
     expect(t.run.teamSize).toBeGreaterThanOrEqual(3);
     expect(t.run.teamSize).toBeLessThanOrEqual(4);
+  });
+
+  it('starts the team fresh — well under the attrition threshold', () => {
+    // A run must earn its way to crisis. Starting burnout sits low, leaving the
+    // whole span up to the threshold for crunch to climb across sprints.
+    expect(t.roster.startingBurnout).toBeGreaterThanOrEqual(0);
+    expect(t.roster.startingBurnout).toBeLessThan(t.attrition.burnoutThreshold);
+    expect(t.roster.startingMorale).toBeGreaterThan(50);
+  });
+
+  it('lets a non-primary skill reach zero so poor-fit is always possible', () => {
+    expect(t.roster.secondarySkillMin).toBe(0);
+  });
+
+  it('keeps skill and ticket bands well-formed (min ≤ max, sizes positive)', () => {
+    expect(t.roster.primarySkillMin).toBeLessThanOrEqual(t.roster.primarySkillMax);
+    expect(t.roster.secondarySkillMin).toBeLessThanOrEqual(t.roster.secondarySkillMax);
+    expect(t.roster.primarySkillMax).toBeLessThanOrEqual(100);
+    expect(t.backlog.ticketSizeMin).toBeLessThanOrEqual(t.backlog.ticketSizeMax);
+    expect(t.backlog.ticketSizeMin).toBeGreaterThan(0);
   });
 
   it('lets the manager afford at least one action per sprint', () => {

@@ -39,3 +39,5 @@ export {
 } from './summary';
 
 export { type RunStatus, type GameState } from './state';
+
+export { newRun } from './newRun';
