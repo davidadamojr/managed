@@ -40,4 +40,18 @@ export {
 
 export { type RunStatus, type GameState } from './state';
 
+export {
+  emptyActions,
+  assign,
+  clearAssignment,
+  assignmentFor,
+  setCrunch,
+  toggleCrunch,
+  idleEngineerIds,
+  validateActions,
+  type SprintActions,
+  type AssignmentProblem,
+  type ActionValidation,
+} from './actions';
+
 export { newRun } from './newRun';
