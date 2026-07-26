@@ -67,4 +67,14 @@ export {
   type AttentionSpend,
 } from './attention';
 
+export {
+  moraleDelta,
+  burnoutDelta,
+  applyPeopleResponse,
+  moraleThroughputMultiplier,
+  type Workload,
+  type SprintExperience,
+  type PeopleState,
+} from './people';
+
 export { newRun } from './newRun';

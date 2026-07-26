@@ -67,6 +67,33 @@ export interface TuningConstants {
     /** Throughput multiplier at morale 0 and at morale 100 (linear between). */
     readonly throughputAtZero: number;
     readonly throughputAtHundred: number;
+    /**
+     * How a single sprint's treatment moves morale — the fast within-sprint mood.
+     * These are summed into one morale delta per engineer, so their combined reach
+     * is deliberately wider than any one sprint's burnout swing: mood is the volatile
+     * signal the player steers by, while burnout is the slow creep underneath it.
+     * Positive lifts, negative erodes.
+     */
+    readonly response: {
+      /** Assigned a sensible, non-overloaded ticket — engaged and well-used. */
+      readonly reasonableLoad: number;
+      /** Benched with no ticket — not neutral; sitting idle stings a little. */
+      readonly idle: number;
+      /** Carrying more than they can handle — demoralizing. */
+      readonly overload: number;
+      /** Stuck on work a poor skill fit — the frustration of the wrong job. */
+      readonly poorFit: number;
+      /** Grinding through a crunch sprint depresses mood now, on top of burnout later. */
+      readonly crunch: number;
+      /** A 1:1 — a small lift from being heard (its main job is sharpening the read). */
+      readonly oneOnOne: number;
+      /** Recognition — the largest single morale lever. */
+      readonly recognize: number;
+      /** An Unblock — relief from friction. */
+      readonly unblock: number;
+      /** Received no attention at all this sprint — quiet erosion that makes neglect bite. */
+      readonly unattendedDrift: number;
+    };
   };
   readonly burnout: {
     /** Burnout added to an engineer who crunches a sprint. */
@@ -119,6 +146,17 @@ const TUNING: TuningConstants = {
   morale: {
     throughputAtZero: 0.7,
     throughputAtHundred: 1.15,
+    response: {
+      reasonableLoad: 3,
+      idle: -4,
+      overload: -12,
+      poorFit: -8,
+      crunch: -6,
+      oneOnOne: 4,
+      recognize: 14,
+      unblock: 8,
+      unattendedDrift: -5,
+    },
   },
   burnout: {
     crunchAccrual: 15,

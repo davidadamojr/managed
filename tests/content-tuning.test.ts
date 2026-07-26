@@ -44,6 +44,15 @@ describe('tuning constants — candidate values', () => {
     expect(t.crunch.throughputMultiplier).toBe(1.4);
     expect(t.morale.throughputAtZero).toBe(0.7);
     expect(t.morale.throughputAtHundred).toBe(1.15);
+    expect(t.morale.response.reasonableLoad).toBe(3);
+    expect(t.morale.response.idle).toBe(-4);
+    expect(t.morale.response.overload).toBe(-12);
+    expect(t.morale.response.poorFit).toBe(-8);
+    expect(t.morale.response.crunch).toBe(-6);
+    expect(t.morale.response.oneOnOne).toBe(4);
+    expect(t.morale.response.recognize).toBe(14);
+    expect(t.morale.response.unblock).toBe(8);
+    expect(t.morale.response.unattendedDrift).toBe(-5);
     expect(t.burnout.crunchAccrual).toBe(15);
     expect(t.burnout.overloadAccrual).toBe(8);
     expect(t.burnout.restfulRecovery).toBe(5);
@@ -122,5 +131,42 @@ describe('tuning constants — design invariants', () => {
   it('makes crunch accrue burnout faster than a restful sprint sheds it', () => {
     // The whole delayed echo depends on crunch debt outrunning recovery.
     expect(t.burnout.crunchAccrual).toBeGreaterThan(t.burnout.restfulRecovery);
+  });
+
+  it('gives every morale driver the intended direction', () => {
+    // Recognition and help lift; overload, poor fit, the crunch grind, being benched,
+    // and neglect all erode. Idle being negative is the "idle is not neutral" rule.
+    const r = t.morale.response;
+    expect(r.reasonableLoad).toBeGreaterThan(0);
+    expect(r.recognize).toBeGreaterThan(0);
+    expect(r.oneOnOne).toBeGreaterThan(0);
+    expect(r.unblock).toBeGreaterThan(0);
+    expect(r.idle).toBeLessThan(0);
+    expect(r.overload).toBeLessThan(0);
+    expect(r.poorFit).toBeLessThan(0);
+    expect(r.crunch).toBeLessThan(0);
+    expect(r.unattendedDrift).toBeLessThan(0);
+  });
+
+  it('makes recognition the strongest single morale lever', () => {
+    const r = t.morale.response;
+    expect(r.recognize).toBeGreaterThan(r.oneOnOne);
+    expect(r.recognize).toBeGreaterThanOrEqual(r.unblock);
+  });
+
+  it('keeps morale more volatile per sprint than burnout — the slowness guard', () => {
+    // The widest morale swing one sprint can produce must exceed the widest burnout
+    // swing, so mood is the fast signal and burnout the slow creep. Burnout's worst
+    // case is crunch and overload stacking; morale's is every eroding (or lifting)
+    // driver landing at once.
+    const r = t.morale.response;
+    const worstBurnout = t.burnout.crunchAccrual + t.burnout.overloadAccrual;
+    const worstMoraleDrop = Math.abs(
+      r.overload + r.poorFit + r.crunch + r.unattendedDrift,
+    );
+    const bestMoraleLift =
+      r.reasonableLoad + r.oneOnOne + r.recognize + r.unblock;
+    expect(worstMoraleDrop).toBeGreaterThan(worstBurnout);
+    expect(bestMoraleLift).toBeGreaterThan(worstBurnout);
   });
 });
