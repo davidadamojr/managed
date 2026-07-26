@@ -13,13 +13,13 @@
 
 import { createRng, nextInt, type RngState } from './rng';
 import {
-  attentionCapacityFor,
   type Engineer,
   type SkillProficiencies,
   type Ticket,
   type Roadmap,
   type ManagerState,
 } from './entities';
+import { freshAttentionPool } from './attention';
 import type { GameState } from './state';
 import { getTuning, listNames, listSkills, type Skill } from '../content';
 
@@ -149,7 +149,6 @@ export function newRun(seed: number): GameState {
   const roadmap = buildRoadmap(draw, backlog);
 
   const manager: ManagerState = { reputation: 0, burnout: 0 };
-  const capacity = attentionCapacityFor(manager);
 
   return {
     // `createRng` normalizes the seed to uint32; read it back so the stored identity
@@ -161,7 +160,9 @@ export function newRun(seed: number): GameState {
     roster,
     backlog,
     roadmap,
-    attention: { capacity, remaining: capacity },
+    // The starting sprint's pool comes from the same refresh every later sprint uses,
+    // so a run begins with a full pool and no code path invents a capacity literal.
+    attention: freshAttentionPool(manager),
     manager,
     status: 'active',
   };

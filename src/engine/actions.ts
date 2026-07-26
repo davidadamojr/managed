@@ -13,9 +13,33 @@
  * genuinely impossible references — an unknown engineer or an unknown ticket — are
  * ever rejected, and only by `validateActions`, which reports them rather than
  * throwing so a caller can present a shortfall without treating the plan as an error.
+ *
+ * Assignment scarcity and attention scarcity are deliberately different in kind.
+ * Assignments are unbounded — the over-capacity juggle is the point. Attention is a
+ * hard-capped economy: the gate lives in the attention module, so this file owns only
+ * the intent *shape* the player accumulates, not the spend rules over it.
  */
 
 import type { GameState } from './state';
+
+/**
+ * The three managerial actions: a 1:1 (sharpen the read on one engineer plus a small
+ * morale lift), an Unblock (restore a stalled engineer's throughput this sprint), and
+ * a Recognize (a morale boost). The set is kept deliberately tiny — depth is meant to
+ * come from the scarcity of attention spread across these few, not from a longer menu.
+ */
+export type AttentionActionKind = 'oneOnOne' | 'unblock' | 'recognize';
+
+/**
+ * One managerial action the player has committed to this sprint: a kind and the
+ * single engineer it attends to. This is intent only — the actual morale/throughput
+ * effect is applied deterministically at resolution, keeping the plan a pure record
+ * of what the manager chose to spend attention on.
+ */
+export interface AttentionAction {
+  readonly kind: AttentionActionKind;
+  readonly engineerId: string;
+}
 
 /**
  * A sprint's plan. `assignments` maps an engineer id to the single ticket they are
@@ -25,22 +49,28 @@ import type { GameState } from './state';
  * `crunch` is one flag for the whole team — there is no per-engineer crunch here.
  * Its throughput-now / burnout-later cost is applied deterministically at
  * resolution; the plan only records the choice.
+ *
+ * `attentionActions` is the ordered list of managerial actions committed this sprint.
+ * It is the intent half of the attention economy — how much of it has been spent is
+ * always derived from this list against the sprint's capacity, never stored
+ * separately, so the two can never drift.
  */
 export interface SprintActions {
   readonly assignments: Readonly<Record<string, string>>;
   readonly crunch: boolean;
+  readonly attentionActions: readonly AttentionAction[];
 }
 
-/** A fresh, empty plan: nobody assigned, no crunch. */
+/** A fresh, empty plan: nobody assigned, no crunch, no attention spent. */
 export function emptyActions(): SprintActions {
-  return { assignments: {}, crunch: false };
+  return { assignments: {}, crunch: false, attentionActions: [] };
 }
 
 /**
  * Slate an engineer onto a ticket, returning a new plan. Records intent only — it
  * does not consult the backlog, so an unknown ticket is captured here and surfaces
  * later through `validateActions`. Re-assigning the same engineer replaces their
- * prior ticket, since an engineer carries one ticket this increment. Never mutates
+ * prior ticket, since an engineer carries a single ticket at a time. Never mutates
  * the input.
  */
 export function assign(

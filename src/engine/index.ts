@@ -50,8 +50,21 @@ export {
   idleEngineerIds,
   validateActions,
   type SprintActions,
+  type AttentionActionKind,
+  type AttentionAction,
   type AssignmentProblem,
   type ActionValidation,
 } from './actions';
+
+export {
+  attentionActionCost,
+  attentionSpent,
+  freshAttentionPool,
+  attentionRemaining,
+  currentAttentionPool,
+  canAffordAttention,
+  spendAttention,
+  type AttentionSpend,
+} from './attention';
 
 export { newRun } from './newRun';
