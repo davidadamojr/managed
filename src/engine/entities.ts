@@ -46,11 +46,15 @@ export interface Assignment {
 /**
  * Optional per-engineer bookkeeping. `atRiskSprints` records how many consecutive
  * sprints an at-risk warning has been shown, which is what lets the game guarantee
- * a fair warning before anyone can quit. Optional so an engineer who was never at
- * risk carries nothing.
+ * a fair warning before anyone can quit. `crunchSprints` is the running count of
+ * sprints the engineer crunched — not a rule input, only the causal story the
+ * departure post-mortem tells ("you crunched them four sprints running"). Both are
+ * optional and omitted while zero, so an engineer who was never at risk and never
+ * crunched carries nothing.
  */
 export interface EngineerFlags {
   readonly atRiskSprints?: number;
+  readonly crunchSprints?: number;
 }
 
 /**

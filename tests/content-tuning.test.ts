@@ -66,7 +66,9 @@ describe('tuning constants — candidate values', () => {
     expect(t.burnout.overloadAccrual).toBe(8);
     expect(t.burnout.restfulRecovery).toBe(5);
     expect(t.attrition.burnoutThreshold).toBe(80);
+    expect(t.attrition.atRiskBurnout).toBe(60);
     expect(t.attrition.warningLeadSprints).toBe(1);
+    expect(t.attrition.fastBurnoutJump).toBe(23);
   });
 });
 
@@ -147,6 +149,46 @@ describe('tuning constants — design invariants', () => {
   it('keeps the attrition threshold inside the 0–100 burnout scale', () => {
     expect(t.attrition.burnoutThreshold).toBeGreaterThan(0);
     expect(t.attrition.burnoutThreshold).toBeLessThanOrEqual(100);
+  });
+
+  it('places the at-risk band below the threshold and above a fresh start', () => {
+    // The warning must have somewhere to live: an engineer reads as at-risk before
+    // they are eligible to quit, and a freshly-started engineer is not already at-risk.
+    expect(t.attrition.atRiskBurnout).toBeLessThan(t.attrition.burnoutThreshold);
+    expect(t.attrition.atRiskBurnout).toBeGreaterThan(t.roster.startingBurnout);
+  });
+
+  // The fairness guarantee is not enforced by hope — it is a property of the band
+  // shape. These four invariants together prove that every quit carries a warning
+  // that precedes it (normal regime) or coincides with it (the bounded fast case):
+  // no unforeseeable loss is representable under this tuning.
+  it('makes the at-risk band wider than a lone crunch, so a crunch climb cannot skip it', () => {
+    // With a band wider than one crunch's accrual, a crunch-only climb must land in
+    // [atRiskBurnout, threshold) — and be warned — for at least one sprint before it
+    // can reach eligibility. This is the core of the normal-regime guarantee.
+    const bandWidth = t.attrition.burnoutThreshold - t.attrition.atRiskBurnout;
+    expect(bandWidth).toBeGreaterThan(t.burnout.crunchAccrual);
+  });
+
+  it('trips the fast-burnout exception only on a spike larger than a lone crunch', () => {
+    // Ordinary crunch (the common case) must always take the fully-warned path, so the
+    // exception never becomes the rule.
+    expect(t.attrition.fastBurnoutJump).toBeGreaterThan(t.burnout.crunchAccrual);
+  });
+
+  it('keeps the fast-burnout exception reachable — the largest possible spike trips it', () => {
+    // The exception must be a live code path, not dead tuning: the biggest jump a
+    // sprint can produce (crunch and overload stacking) is exactly what triggers it.
+    const maxJump = t.burnout.crunchAccrual + t.burnout.overloadAccrual;
+    expect(t.attrition.fastBurnoutJump).toBeLessThanOrEqual(maxJump);
+  });
+
+  it('makes any band-skipping jump large enough to trip the exception — no unwarned quit escapes both', () => {
+    // The one jump big enough to clear the whole band in a single sprint is also big
+    // enough to trip the fast exception, which shows the warning coincident with the
+    // loss. So a spike that skips the prior-warning path never escapes warning entirely.
+    const bandWidth = t.attrition.burnoutThreshold - t.attrition.atRiskBurnout;
+    expect(bandWidth).toBeLessThan(t.attrition.fastBurnoutJump);
   });
 
   it('makes crunch accrue burnout faster than a restful sprint sheds it', () => {

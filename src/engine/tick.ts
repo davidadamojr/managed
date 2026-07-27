@@ -96,7 +96,7 @@ export function tick(state: GameState, actions: SprintActions): TickResult {
   const sprintIndex = advancing ? state.sprintIndex + 1 : state.sprintIndex;
   if (advancing && sprintIndex >= state.runLength) status = 'completed';
 
-  const newState: GameState = {
+  const base: GameState = {
     ...state,
     rngState,
     sprintIndex,
@@ -106,6 +106,11 @@ export function tick(state: GameState, actions: SprintActions): TickResult {
     status,
     history: [...(state.history ?? []), summary],
   };
+  // The departure trace is recorded only on the sprint a quit fires; the run ends
+  // there, so it never needs carrying across ticks.
+  const newState = attrition.departure
+    ? { ...base, departure: attrition.departure }
+    : base;
 
   return { state: newState, summary };
 }

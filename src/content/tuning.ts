@@ -130,8 +130,25 @@ export interface TuningConstants {
   readonly attrition: {
     /** Burnout at or above which an engineer becomes attrition-eligible. */
     readonly burnoutThreshold: number;
+    /**
+     * Burnout at or above which an engineer reads as at-risk — the lower edge of the
+     * warning band [atRiskBurnout, burnoutThreshold). Sits below the threshold so the
+     * fuzzy warning surfaces while there is still a sprint to act on it. The band is
+     * kept wider than a single crunch's accrual, so a crunch-only climb can never step
+     * over it into eligibility unwarned — the structural core of the fairness guarantee.
+     */
+    readonly atRiskBurnout: number;
     /** Sprints of fuzzy at-risk warning owed before an eligible quit. */
     readonly warningLeadSprints: number;
+    /**
+     * Single-sprint burnout jump at or above which the fairness lead time may be
+     * compressed: the spike was so drastic that showing the warning in the same summary
+     * as the loss is fair (the player drove it there in one sprint). Set to the largest
+     * accrual a sprint can produce, so only a maxed-out sprint triggers it — and larger
+     * than a lone crunch, so ordinary crunch always takes the fully-warned path. This is
+     * the narrow, bounded exception; it never swallows the general guarantee.
+     */
+    readonly fastBurnoutJump: number;
   };
 }
 
@@ -196,7 +213,9 @@ const TUNING: TuningConstants = {
   },
   attrition: {
     burnoutThreshold: 80,
+    atRiskBurnout: 60,
     warningLeadSprints: 1,
+    fastBurnoutJump: 23,
   },
 };
 

@@ -26,6 +26,29 @@ import type { SprintSummary } from './summary';
 export type RunStatus = 'active' | 'completed' | 'failed';
 
 /**
+ * Why a run ended in attrition — the readable trace the post-mortem is built from.
+ * Recorded once, when a quit fires, and carried on the state for the rest of the run.
+ * It holds the *story* of the loss, not raw interiors: who left and when, how many
+ * sprints of at-risk warning the player was shown and ignored, how many crunch
+ * sprints led here, and whether the bounded fast-burnout exception compressed the
+ * warning into the quitting sprint. No morale or burnout number appears — the fuzzy
+ * rule holds even in the post-mortem. Later run-lifecycle work finalizes and renders
+ * this; the engine only produces it.
+ */
+export interface DepartureTrace {
+  readonly engineerId: string;
+  readonly engineerName: string;
+  /** Zero-based sprint index in which the engineer quit. */
+  readonly sprintIndex: number;
+  /** Consecutive at-risk sprints surfaced before the quit — the ignored warnings. */
+  readonly warningsShown: number;
+  /** Crunch sprints the engineer endured over the run — the cause behind the burnout. */
+  readonly crunchSprints: number;
+  /** True when the fast-burnout exception let the warning coincide with the loss. */
+  readonly fastBurnout: boolean;
+}
+
+/**
  * The whole run in one serializable object. `seed` is the run's fixed identity;
  * `rngState` carries the live stream position drawn from that seed. They start
  * equal and diverge only in cursor as the run advances — both are kept because the
@@ -46,4 +69,9 @@ export interface GameState {
   readonly status: RunStatus;
   /** Resolved sprint summaries, oldest first. Optional and retained for review. */
   readonly history?: readonly SprintSummary[];
+  /**
+   * Set once, when a quit ends the run, to the trace behind the loss. Absent on an
+   * active or completed run — a `failed` run always carries it.
+   */
+  readonly departure?: DepartureTrace;
 }

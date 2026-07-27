@@ -40,7 +40,7 @@ export {
   type SummaryInputs,
 } from './summary';
 
-export { type RunStatus, type GameState } from './state';
+export { type RunStatus, type GameState, type DepartureTrace } from './state';
 
 export {
   emptyActions,
@@ -96,7 +96,12 @@ export {
   type EventFiring,
 } from './sprintEvents';
 
-export { evaluateAttrition, type AttritionOutcome } from './attrition';
+export {
+  evaluateAttrition,
+  isAtRisk,
+  atRiskWarning,
+  type AttritionOutcome,
+} from './attrition';
 
 export { tick, type TickResult } from './tick';
 
