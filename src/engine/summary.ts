@@ -12,6 +12,19 @@ import type { GameEvent } from '../content';
 import type { RoadmapProgress } from './entities';
 
 /**
+ * The resolved facts one sprint hands to the summary: what shipped, overall roadmap
+ * progress, and the event that fired (if any). The fuzzy per-engineer reads and
+ * at-risk flags are added by later prompts — resolution supplies the outcomes; the
+ * derivation turns them, and the team's state, into the readable account.
+ */
+export interface SummaryInputs {
+  readonly sprintIndex: number;
+  readonly shipped: readonly string[];
+  readonly roadmap: RoadmapProgress;
+  readonly event?: SprintEventReport;
+}
+
+/**
  * A fuzzy read of one engineer at sprint end. `note` is qualitative prose, never a
  * number, so the player reads the team through observation rather than a health
  * bar. `atRisk` is the fairness surface: when true the player has been shown this
@@ -48,4 +61,24 @@ export interface SprintSummary {
   readonly roadmap: RoadmapProgress;
   readonly reads: readonly EngineerRead[];
   readonly event?: SprintEventReport;
+}
+
+/**
+ * Build a sprint's summary from its resolved facts. This is the derivation the tick
+ * calls; keeping it a pure function of already-settled inputs holds the engine/view
+ * wall — the view renders what this returns and computes nothing itself.
+ *
+ * At this stage the summary carries the resolved outcomes and any fired event. The
+ * fuzzy per-engineer `reads` and their at-risk flags are the derivation prompts' work
+ * (from the roster's morale/burnout and prior history); they start empty here so no
+ * placeholder read is mistaken for a real one.
+ */
+export function deriveSummary(inputs: SummaryInputs): SprintSummary {
+  const summary: SprintSummary = {
+    sprintIndex: inputs.sprintIndex,
+    shipped: inputs.shipped,
+    roadmap: inputs.roadmap,
+    reads: [],
+  };
+  return inputs.event ? { ...summary, event: inputs.event } : summary;
 }

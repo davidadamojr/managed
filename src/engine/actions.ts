@@ -106,6 +106,22 @@ export function assignmentFor(
   return actions.assignments[engineerId] ?? null;
 }
 
+/**
+ * The kinds of attention one engineer received this sprint, in the order committed.
+ * This is the "attention" half of the people model's `SprintExperience`: an empty list
+ * means the engineer was left unattended, which the model treats as its own eroding
+ * input, not a no-op. Derived from the plan so it can never disagree with what was
+ * spent.
+ */
+export function attentionKindsFor(
+  actions: SprintActions,
+  engineerId: string,
+): AttentionActionKind[] {
+  return actions.attentionActions
+    .filter((action) => action.engineerId === engineerId)
+    .map((action) => action.kind);
+}
+
 /** Set the team-wide crunch flag to a known value, returning a new plan. */
 export function setCrunch(
   actions: SprintActions,

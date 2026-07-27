@@ -33,9 +33,11 @@ export {
 } from './entities';
 
 export {
+  deriveSummary,
   type EngineerRead,
   type SprintEventReport,
   type SprintSummary,
+  type SummaryInputs,
 } from './summary';
 
 export { type RunStatus, type GameState } from './state';
@@ -45,6 +47,7 @@ export {
   assign,
   clearAssignment,
   assignmentFor,
+  attentionKindsFor,
   setCrunch,
   toggleCrunch,
   idleEngineerIds,
@@ -76,5 +79,25 @@ export {
   type SprintExperience,
   type PeopleState,
 } from './people';
+
+export {
+  skillFit,
+  isPoorFit,
+  workOutput,
+  resolveWork,
+  type EngineerWork,
+  type WorkResolution,
+} from './work';
+
+export {
+  shouldFireEvent,
+  pickWeightedEvent,
+  fireEvent,
+  type EventFiring,
+} from './sprintEvents';
+
+export { evaluateAttrition, type AttritionOutcome } from './attrition';
+
+export { tick, type TickResult } from './tick';
 
 export { newRun } from './newRun';

@@ -63,6 +63,30 @@ export interface TuningConstants {
     /** Throughput multiplier when an engineer crunches this sprint. */
     readonly throughputMultiplier: number;
   };
+  readonly work: {
+    /**
+     * Effort points a perfectly-fit (proficiency 100), neutral-morale, non-crunch
+     * engineer produces against their ticket in one sprint. Skill fit, morale, and
+     * crunch scale this up or down at resolution. Sized so a well-fit engineer clears
+     * a roughly average ticket in a sprint — the proxy the over-capacity backlog is
+     * built against.
+     */
+    readonly baseOutput: number;
+    /**
+     * Proficiency at or below which an assignment reads as a poor fit — the morale
+     * frustration of the wrong job. This is the boolean threshold for the people
+     * response; throughput itself scales continuously with fit, so a fit just above
+     * this still ships slowly without counting as a poor fit.
+     */
+    readonly poorFitThreshold: number;
+  };
+  readonly events: {
+    /**
+     * Probability that an event surfaces at all in a sprint. Below 1 on purpose, so
+     * some sprints stay quiet — "at most one event per sprint," never guaranteed one.
+     */
+    readonly perSprintChance: number;
+  };
   readonly morale: {
     /** Throughput multiplier at morale 0 and at morale 100 (linear between). */
     readonly throughputAtZero: number;
@@ -142,6 +166,13 @@ const TUNING: TuningConstants = {
   },
   crunch: {
     throughputMultiplier: 1.4,
+  },
+  work: {
+    baseOutput: 6,
+    poorFitThreshold: 40,
+  },
+  events: {
+    perSprintChance: 0.6,
   },
   morale: {
     throughputAtZero: 0.7,

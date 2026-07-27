@@ -38,6 +38,15 @@ describe('tuning constants — candidate values', () => {
     expect(t.attention.actionCost.recognize).toBe(1);
   });
 
+  it('carries the candidate work-resolution parameters', () => {
+    expect(t.work.baseOutput).toBe(6);
+    expect(t.work.poorFitThreshold).toBe(40);
+  });
+
+  it('carries the candidate event-firing chance', () => {
+    expect(t.events.perSprintChance).toBe(0.6);
+  });
+
   it('carries the candidate people and roadmap parameters', () => {
     expect(t.backlog.overCapacityRatio).toBe(1.5);
     expect(t.roadmap.size).toBe(5);
@@ -117,6 +126,18 @@ describe('tuning constants — design invariants', () => {
 
   it('makes crunch a real short-term throughput lever', () => {
     expect(t.crunch.throughputMultiplier).toBeGreaterThan(1);
+  });
+
+  it('gives work a positive base output and a poor-fit threshold inside the skill scale', () => {
+    expect(t.work.baseOutput).toBeGreaterThan(0);
+    expect(t.work.poorFitThreshold).toBeGreaterThan(0);
+    expect(t.work.poorFitThreshold).toBeLessThan(100);
+  });
+
+  it('keeps the event-firing chance a real probability, with quiet sprints possible', () => {
+    // Below 1 so "at most one event per sprint" stays honest — some sprints fire none.
+    expect(t.events.perSprintChance).toBeGreaterThan(0);
+    expect(t.events.perSprintChance).toBeLessThan(1);
   });
 
   it('guarantees at least one sprint of attrition warning lead time', () => {
