@@ -7,12 +7,16 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
-    "harness": "tsx harness/index.ts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.view.json",
+    "harness": "tsx harness/index.ts",
+    "build:view": "esbuild src/view/main.ts --bundle --format=esm --sourcemap --outfile=dist/view/app.js && cp src/view/index.html dist/view/index.html",
+    "dev:view": "npm run build:view && esbuild src/view/main.ts --bundle --format=esm --sourcemap --outfile=dist/view/app.js --servedir=dist/view"
   },
   "license": "UNLICENSED",
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "esbuild": "^0.28.1",
+    "happy-dom": "^20.11.1",
     "tsx": "^4.23.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"

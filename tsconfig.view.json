@@ -1,0 +1,16 @@
+{
+  /* Layer 3 (the view) is the ONLY code allowed to touch the DOM. It compiles under
+     this config, separate from the engine's `tsconfig.json`, for one reason: the
+     engine config deliberately omits the "DOM" lib so `document`/`window` are not even
+     typed inside the engine — that missing type surface is what physically enforces the
+     engine/view wall. Re-enabling DOM here, only for `src/view` and its tests, keeps
+     that wall intact while letting the view render real elements. Everything else
+     (strictness, module settings) is inherited so the two layers stay consistent. */
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["src/view", "tests/view"],
+  "exclude": []
+}

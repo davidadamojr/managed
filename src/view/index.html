@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Managed — The Sprint</title>
+    <!--
+      Minimal legibility styling only — enough for readable text, spacing, and contrast
+      (the Increment-1 accessibility floor). This is deliberately not art or theming: the
+      raw panels-and-numbers loop is meant to prove fun before any polish. Desktop
+      evergreen browsers only; no mobile layout for Increment 1.
+    -->
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+        max-width: 60rem;
+        margin: 0 auto;
+        padding: 1rem;
+      }
+      .run-header {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 600;
+        margin-bottom: 1rem;
+      }
+      .panel {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 1rem;
+      }
+      .panel-title { margin: 0 0 0.5rem; font-size: 1rem; }
+      .roster-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+        gap: 0.75rem;
+      }
+      .engineer-card { border: 1px solid currentColor; border-radius: 4px; padding: 0.5rem; }
+      .engineer-name { margin: 0; font-size: 1rem; }
+      .engineer-flavor { margin: 0 0 0.5rem; font-style: italic; opacity: 0.8; }
+      .engineer-skills { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; list-style: none; padding: 0; margin: 0 0 0.5rem; }
+      .engineer-read { margin: 0.5rem 0; }
+      .engineer-read.at-risk { font-weight: 600; }
+      .attn-buttons { display: flex; gap: 0.25rem; margin-top: 0.5rem; }
+      .ticket-list, .attention-legend { list-style: none; padding: 0; margin: 0; }
+      .attention-legend { display: flex; gap: 1rem; }
+      .attention-action.spent { opacity: 0.5; }
+      .resolve-btn { font-size: 1rem; padding: 0.5rem 1rem; }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

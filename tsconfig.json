@@ -28,5 +28,11 @@
 
     "noEmit": true
   },
-  "include": ["src", "harness", "tests", "vitest.config.ts"]
+  "include": ["src", "harness", "tests", "vitest.config.ts"],
+
+  /* The view (Layer 3) is the one place DOM types are allowed. It is compiled by
+     `tsconfig.view.json`, which turns the DOM lib back on. Excluding it here is what
+     keeps `document`/`window` un-typed — and therefore un-referenceable — everywhere
+     in the engine, harness, and engine tests. That un-typing is the enforcement. */
+  "exclude": ["src/view", "tests/view"]
 }
