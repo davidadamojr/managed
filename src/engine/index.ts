@@ -45,6 +45,14 @@ export type { MoodBand } from '../content';
 export { type RunStatus, type GameState, type DepartureTrace } from './state';
 
 export {
+  deriveOutcome,
+  type RunResult,
+  type RunOutcome,
+  type PostMortem,
+  type WarningEcho,
+} from './outcome';
+
+export {
   emptyActions,
   assign,
   clearAssignment,
