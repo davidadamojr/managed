@@ -74,6 +74,17 @@ function firingRng(seed: number): RngState {
   throw new Error('no firing cursor found');
 }
 
+/** A starting cursor whose next `sprints` event-gate draws are all quiet. */
+function quietRunRng(seed: number, sprints: number): RngState {
+  outer: for (let cursor = 0; cursor < 200_000; cursor += 1) {
+    for (let i = 0; i < sprints; i += 1) {
+      if (shouldFireEvent(nextFloat(at(seed, cursor + i)).value)) continue outer;
+    }
+    return at(seed, cursor);
+  }
+  throw new Error('no quiet run cursor found');
+}
+
 /** A meaty plan over a real run: everyone assigned, crunching, some attention spent. */
 function fullPlan(state: GameState): SprintActions {
   let plan = emptyActions();
@@ -260,6 +271,45 @@ describe('tick — advances the sprint and refreshes the attention pool', () => 
     const { state: next, summary } = tick(state, emptyActions());
     expect(next.history).toHaveLength(1);
     expect(next.history!.at(-1)).toEqual(summary);
+  });
+
+  it('populates a fuzzy read per engineer, sharpens the 1:1’d one, and reads a trend across sprints', () => {
+    // A poor-fit, crunched, 1:1'd engineer: the 1:1 lifts mood, but the poor fit and
+    // crunch grind outweigh it, so morale falls a little every sprint while burnout is
+    // still climbing below the at-risk band. The read should sharpen (a 1:1 was spent),
+    // resolve a falling direction from the second sprint, and read "again" by the third
+    // — proving the tick threads the prior sprint's reads back through history.
+    const eng = engineer('e', skillsWith(0, { backend: 10 }), 65, 10); // backend 10 ≤ poorFitThreshold
+    let state = stateWith({
+      roster: [eng],
+      backlog: [ticket('k', 'backend', 1000)], // unfinishable — the same job every sprint
+      sprintIndex: 0,
+      runLength: 6,
+      rngState: quietRunRng(1, 3),
+    });
+    const plan: SprintActions = {
+      ...assign(setCrunch(emptyActions(), true), 'e', 'k'),
+      attentionActions: [{ kind: 'oneOnOne', engineerId: 'e' }],
+    };
+
+    const notes: string[] = [];
+    for (let sprint = 0; sprint < 3; sprint += 1) {
+      const { state: next, summary } = tick(state, plan);
+      expect(summary.reads).toHaveLength(1);
+      const read = summary.reads[0]!;
+      expect(read.engineerId).toBe('e');
+      expect(read.sharpened).toBe(true); // the 1:1 target is always sharpened
+      expect(read.atRisk).toBe(false); // burnout still below the band across these sprints
+      expect(next.history!.at(-1)!.reads).toEqual(summary.reads); // retained for trend/post-mortem
+      notes.push(read.note);
+      state = next;
+    }
+
+    // First sprint: state, no direction. Then slipping, then slipping again.
+    expect(notes[0]).not.toMatch(/slipping/);
+    expect(notes[1]).toContain('slipping');
+    expect(notes[1]).not.toContain('again');
+    expect(notes[2]).toContain('slipping again');
   });
 
   it('completes the run when the team reaches the final sprint intact', () => {

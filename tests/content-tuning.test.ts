@@ -47,6 +47,12 @@ describe('tuning constants — candidate values', () => {
     expect(t.events.perSprintChance).toBe(0.6);
   });
 
+  it('carries the candidate mood-band floors', () => {
+    expect(t.reads.moodBands.thriving).toBe(70);
+    expect(t.reads.moodBands.steady).toBe(45);
+    expect(t.reads.moodBands.dipping).toBe(25);
+  });
+
   it('carries the candidate people and roadmap parameters', () => {
     expect(t.backlog.overCapacityRatio).toBe(1.5);
     expect(t.roadmap.size).toBe(5);
@@ -140,6 +146,22 @@ describe('tuning constants — design invariants', () => {
     // Below 1 so "at most one event per sprint" stays honest — some sprints fire none.
     expect(t.events.perSprintChance).toBeGreaterThan(0);
     expect(t.events.perSprintChance).toBeLessThan(1);
+  });
+
+  it('orders the mood-band floors and keeps them inside the morale scale', () => {
+    const { thriving, steady, dipping } = t.reads.moodBands;
+    expect(thriving).toBeGreaterThan(steady);
+    expect(steady).toBeGreaterThan(dipping);
+    expect(dipping).toBeGreaterThan(0);
+    expect(thriving).toBeLessThanOrEqual(100);
+  });
+
+  it('places a freshly-started team in the steady band — neither thriving nor flat', () => {
+    // A run opens with the team reading "steady enough," leaving room to read both a
+    // rise (recognition, relief) and the slide the crunch arc produces.
+    const { thriving, steady } = t.reads.moodBands;
+    expect(t.roster.startingMorale).toBeGreaterThanOrEqual(steady);
+    expect(t.roster.startingMorale).toBeLessThan(thriving);
   });
 
   it('guarantees at least one sprint of attrition warning lead time', () => {

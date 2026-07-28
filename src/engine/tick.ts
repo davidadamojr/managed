@@ -82,11 +82,24 @@ export function tick(state: GameState, actions: SprintActions): TickResult {
     event = fired.report ?? undefined;
   }
 
-  // 5. Derive the readable summary from everything resolved above.
+  // 5. Derive the readable summary from everything resolved above. The fuzzy reads
+  //    need the settled team plus three thin slices of context: each engineer's
+  //    start-of-sprint morale (to read a direction without storing the number), who a
+  //    1:1 attended (a 1:1 sharpens the read), and the prior sprint's reads (to tell a
+  //    two-sprint slide from a one-sprint dip).
+  const priorMoraleById: Record<string, number> = {};
+  for (const engineer of state.roster) priorMoraleById[engineer.id] = engineer.morale;
+  const oneOnOneIds = actions.attentionActions
+    .filter((action) => action.kind === 'oneOnOne')
+    .map((action) => action.engineerId);
   const summary = deriveSummary({
     sprintIndex: state.sprintIndex,
     shipped: work.shipped,
     roadmap: roadmapProgress(state.roadmap, work.backlog),
+    roster,
+    priorMoraleById,
+    oneOnOneIds,
+    priorReads: state.history?.at(-1)?.reads,
     event,
   });
 

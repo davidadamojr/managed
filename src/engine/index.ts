@@ -35,10 +35,12 @@ export {
 export {
   deriveSummary,
   type EngineerRead,
+  type ReadTrend,
   type SprintEventReport,
   type SprintSummary,
   type SummaryInputs,
 } from './summary';
+export type { MoodBand } from '../content';
 
 export { type RunStatus, type GameState, type DepartureTrace } from './state';
 

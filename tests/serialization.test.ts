@@ -54,8 +54,22 @@ function fullyPopulatedState(): GameState {
         shipped: ['t1'],
         roadmap: { completed: 1, total: 2 },
         reads: [
-          { engineerId: 'e1', note: 'steady as ever', atRisk: false },
-          { engineerId: 'e2', note: 'looking worn down lately', atRisk: true },
+          {
+            engineerId: 'e1',
+            note: 'Priya Nair seems steady enough.',
+            atRisk: false,
+            mood: 'steady',
+            trend: 'unknown',
+            sharpened: false,
+          },
+          {
+            engineerId: 'e2',
+            note: 'Kelvin Osei has that thousand-yard stare in reviews now.',
+            atRisk: true,
+            mood: 'dipping',
+            trend: 'unknown',
+            sharpened: false,
+          },
         ],
         event: {
           id: 'demo-scramble',

@@ -16,5 +16,13 @@ export {
   type EventEffectTarget,
   type EventEffectAttribute,
 } from './events';
-export { listAtRiskWarnings } from './reads';
+export {
+  listAtRiskWarnings,
+  atRiskPersistenceRead,
+  moodRead,
+  trendClause,
+  listAllReadPhrasings,
+  type MoodBand,
+  type ReadDirection,
+} from './reads';
 export { getTuning, type TuningConstants } from './tuning';

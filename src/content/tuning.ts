@@ -87,6 +87,20 @@ export interface TuningConstants {
      */
     readonly perSprintChance: number;
   };
+  readonly reads: {
+    /**
+     * Morale floors for the fuzzy mood bands, keyed by the band name (mirroring the
+     * `MoodBand` vocabulary in the content reads). A morale at or above `thriving`
+     * reads as thriving, above `steady` as steady, above `dipping` as dipping, and
+     * anything lower as struggling. Kept here so legibility — where the read tips from
+     * "steady" to "flat" — is retuned as data, not by editing the derivation.
+     */
+    readonly moodBands: {
+      readonly thriving: number;
+      readonly steady: number;
+      readonly dipping: number;
+    };
+  };
   readonly morale: {
     /** Throughput multiplier at morale 0 and at morale 100 (linear between). */
     readonly throughputAtZero: number;
@@ -190,6 +204,13 @@ const TUNING: TuningConstants = {
   },
   events: {
     perSprintChance: 0.6,
+  },
+  reads: {
+    moodBands: {
+      thriving: 70,
+      steady: 45,
+      dipping: 25,
+    },
   },
   morale: {
     throughputAtZero: 0.7,
