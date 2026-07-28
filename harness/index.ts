@@ -1,46 +1,119 @@
 /**
- * Headless harness stub: proves the engine runs and produces a deterministic
- * stream with no UI whatsoever. Run with `npm run harness`, optionally passing a
- * seed and draw count: `npm run harness -- 12345 10`.
+ * The harness CLI — the `npm run harness` entry point. It drives the same pure engine
+ * the game does, headlessly, and prints one of:
+ *   - the mechanical tuning report (default), on the candidate parameters;
+ *   - a parameter sweep, showing how the four bars respond as one constant changes;
+ *   - the original RNG determinism smoke.
  *
- * The draw loop is factored into `generateSequence` (pure, exported) so it can be
- * asserted directly in tests; `main` is only the print wrapper.
+ * The command logic lives in `runCli(args, log)` so it takes an explicit log sink and is
+ * testable without spawning a process. The bottom-of-file guard wires it to the real argv
+ * only when this file is executed directly, never when imported by a test.
+ *
+ * Usage:
+ *   npm run harness                         # tuning report on candidate params
+ *   npm run harness -- report --seeds 40    # report over 40 seeds
+ *   npm run harness -- sweep crunchAccrual  # sweep one parameter across a range
+ *   npm run harness -- rng 12345 10         # RNG determinism smoke
  */
 import { pathToFileURL } from 'node:url';
-import { createRng, nextFloat } from '../src/engine/rng';
+import type { TuningOverride } from '../src/content';
+import { runReport, formatReport } from './report';
+import { sweepParameter, formatSweep } from './sweep';
+import { printRngDemo, DEFAULT_SEED, DEFAULT_DRAWS } from './rngDemo';
 
-export const DEFAULT_SEED = 12345;
-export const DEFAULT_DRAWS = 10;
-
-export function generateSequence(seed: number, count: number): number[] {
-  let state = createRng(seed);
-  const out: number[] = [];
-  for (let i = 0; i < count; i += 1) {
-    const { value, next } = nextFloat(state);
-    out.push(value);
-    state = next;
-  }
-  return out;
+/** A named, ready-to-run sweep: the values to try and the lens that applies each. */
+interface NamedSweep {
+  readonly values: readonly number[];
+  readonly overrideFor: (value: number) => TuningOverride;
 }
 
-export function main(
-  seed: number = DEFAULT_SEED,
-  count: number = DEFAULT_DRAWS,
+/**
+ * The parameters the CLI can sweep out of the box, each with a range chosen to straddle
+ * the interesting regime (crunch free → punished → premature, attention scarce → ample,
+ * and so on). Anything nested is reachable through its lens.
+ */
+export const SWEEPS: Readonly<Record<string, NamedSweep>> = {
+  crunchAccrual: {
+    values: [8, 12, 15, 20, 25, 35],
+    overrideFor: (v) => ({ burnout: { crunchAccrual: v } }),
+  },
+  atRiskBurnout: {
+    values: [50, 55, 60, 65, 70],
+    overrideFor: (v) => ({ attrition: { atRiskBurnout: v } }),
+  },
+  poolPerSprint: {
+    values: [1, 2, 3, 4],
+    overrideFor: (v) => ({ attention: { poolPerSprint: v } }),
+  },
+  overCapacityRatio: {
+    values: [1.2, 1.5, 2, 3],
+    overrideFor: (v) => ({ backlog: { overCapacityRatio: v } }),
+  },
+  roadmapSize: {
+    values: [3, 5, 7, 9],
+    overrideFor: (v) => ({ roadmap: { size: v } }),
+  },
+  sprints: {
+    values: [5, 6],
+    overrideFor: (v) => ({ run: { sprints: v } }),
+  },
+};
+
+/** Read `--flag value` out of an argument list, returning the number or a fallback. */
+function numberFlag(args: readonly string[], flag: string, fallback: number): number {
+  const index = args.indexOf(flag);
+  if (index === -1 || index + 1 >= args.length) return fallback;
+  const value = Number(args[index + 1]);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+/**
+ * Execute the CLI against an argument list, printing through `log`. Pure but for the log
+ * sink: it composes the deterministic report / sweep / RNG functions and formats them.
+ */
+export function runCli(
+  args: readonly string[],
   log: (line: string) => void = console.log,
 ): void {
-  log('Managed — headless RNG harness');
-  log(`seed=${seed} draws=${count}`);
-  generateSequence(seed, count).forEach((value, i) => {
-    log(`  [${i}] ${value}`);
-  });
+  // A leading flag (e.g. `--seeds 4`) means "the default command with options", so only
+  // a non-flag first token names a subcommand.
+  const first = args[0];
+  const named = first !== undefined && !first.startsWith('--');
+  const command = named ? first : 'report';
+  const rest = named ? args.slice(1) : args;
+  const seedCount = numberFlag(rest, '--seeds', 24);
+
+  if (command === 'rng') {
+    const seed = rest[0] === undefined ? DEFAULT_SEED : Number(rest[0]);
+    const draws = rest[1] === undefined ? DEFAULT_DRAWS : Number(rest[1]);
+    printRngDemo(seed, draws, log);
+    return;
+  }
+
+  if (command === 'sweep') {
+    const name = rest[0];
+    const sweep = name ? SWEEPS[name] : undefined;
+    if (!sweep) {
+      log(`unknown sweep: ${name ?? '(none)'}`);
+      log(`available sweeps: ${Object.keys(SWEEPS).join(', ')}`);
+      return;
+    }
+    const result = sweepParameter(name!, sweep.values, sweep.overrideFor, { seedCount });
+    formatSweep(result).forEach((line) => log(line));
+    return;
+  }
+
+  if (command === 'report') {
+    formatReport(runReport({ seedCount })).forEach((line) => log(line));
+    return;
+  }
+
+  log(`unknown command: ${command}`);
+  log('usage: harness [report|sweep <param>|rng] [--seeds N]');
 }
 
 // Run only when executed directly, not when imported by a test.
 const invokedPath = process.argv[1];
 if (invokedPath && import.meta.url === pathToFileURL(invokedPath).href) {
-  const seedArg = process.argv[2];
-  const countArg = process.argv[3];
-  const seed = seedArg === undefined ? DEFAULT_SEED : Number(seedArg);
-  const count = countArg === undefined ? DEFAULT_DRAWS : Number(countArg);
-  main(seed, count);
+  runCli(process.argv.slice(2));
 }

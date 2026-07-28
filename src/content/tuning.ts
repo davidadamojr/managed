@@ -166,6 +166,17 @@ export interface TuningConstants {
   };
 }
 
+/**
+ * A partial view of the tuning tree: any subset of sections and fields, nested to any
+ * depth, with every leaf optional. This is the shape the harness passes to override a
+ * few parameters while leaving the rest at their candidate values.
+ */
+export type TuningOverride = DeepPartial<TuningConstants>;
+
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+};
+
 const TUNING: TuningConstants = {
   run: {
     sprints: 6,
@@ -240,7 +251,67 @@ const TUNING: TuningConstants = {
   },
 };
 
-/** The tuning constants. Read-only by contract. */
+/**
+ * A scoped override of the candidate constants, or `null` when the base values are in
+ * force. This is the one piece of mutable state in the content layer, and it exists for
+ * exactly one caller: the tuning harness, which measures the design's mechanical
+ * properties under *alternate* parameter sets so a sweep can show how each bar responds.
+ *
+ * The locked tick contract takes `(state, actions)` and nothing else, so tuning cannot
+ * be threaded in as a parameter — `getTuning()` is the only seam the engine reads
+ * through. `withTuning` sets this cell for the duration of a single synchronous call and
+ * restores it in a `finally`, so determinism is untouched: outside the scope every read
+ * returns the base constants, and inside it every read returns the same pre-merged
+ * object. It is a scoped dynamic binding, not ambient global state.
+ */
+let activeOverride: TuningConstants | null = null;
+
+/** Whether a value is a plain object (a tuning section), not a primitive leaf. */
+function isSection(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Deep-merge a partial override onto a full tuning tree, returning a new tree. Sections
+ * recurse so a patch to one field leaves its siblings intact; leaves replace. Pure — it
+ * never mutates `base`.
+ */
+function mergeTuning<T>(base: T, patch: DeepPartial<T>): T {
+  const merged: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const key of Object.keys(patch as object)) {
+    const patchValue = (patch as Record<string, unknown>)[key];
+    const baseValue = merged[key];
+    if (isSection(baseValue) && isSection(patchValue)) {
+      merged[key] = mergeTuning(baseValue, patchValue as DeepPartial<typeof baseValue>);
+    } else if (patchValue !== undefined) {
+      merged[key] = patchValue;
+    }
+  }
+  return merged as T;
+}
+
+/**
+ * The tuning constants in force. The scoped override wins when one is active (inside a
+ * `withTuning` call); otherwise the base candidate constants. Read-only by contract.
+ */
 export function getTuning(): TuningConstants {
-  return TUNING;
+  return activeOverride ?? TUNING;
+}
+
+/**
+ * Run `body` with `override` deep-merged onto the constants currently in force, then
+ * restore. `body` MUST be synchronous — the whole engine is, and the scope is torn down
+ * the instant `body` returns, so an override never leaks into a later tick. Calls nest:
+ * an inner `withTuning` layers onto the outer one and unwinds cleanly. Returns whatever
+ * `body` returns, so a caller can simulate a full run under alternate parameters in one
+ * expression.
+ */
+export function withTuning<T>(override: TuningOverride, body: () => T): T {
+  const previous = activeOverride;
+  activeOverride = mergeTuning(previous ?? TUNING, override);
+  try {
+    return body();
+  } finally {
+    activeOverride = previous;
+  }
 }

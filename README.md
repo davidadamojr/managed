@@ -25,16 +25,22 @@ npm install
 | `npm test`          | Run the Vitest suite once.                               |
 | `npm run test:watch`| Run Vitest in watch mode.                                |
 | `npm run typecheck` | Strict TypeScript type-check (no emit).                  |
-| `npm run harness`   | Run the headless simulation harness (no UI).             |
+| `npm run harness`   | Run the headless tuning harness (no UI) — the mechanical report. |
 
-The harness takes an optional seed and draw count:
+The harness drives the same pure engine the game does, headlessly, over many
+seeded runs, and reports whether the design meets its mechanical bars — echo
+timing, fairness, dominant strategy, and roadmap achievability:
 
 ```bash
-npm run harness -- 12345 10
+npm run harness                          # tuning report on the candidate params
+npm run harness -- report --seeds 40     # over 40 seeds
+npm run harness -- sweep crunchAccrual   # how the bars respond as one constant changes
+npm run harness -- rng 12345 10          # the original RNG determinism smoke
 ```
 
-Because the RNG is seeded and pure, the same arguments always print the same
-sequence.
+Because everything under it is seeded and pure, a given seed set and parameter
+set always produce the identical report. The report states what *is*: when the
+candidate constants fail a bar, it says so rather than flattering the design.
 
 ## Architecture — four layers
 

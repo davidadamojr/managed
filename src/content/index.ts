@@ -25,4 +25,9 @@ export {
   type MoodBand,
   type ReadDirection,
 } from './reads';
-export { getTuning, type TuningConstants } from './tuning';
+export {
+  getTuning,
+  withTuning,
+  type TuningConstants,
+  type TuningOverride,
+} from './tuning';

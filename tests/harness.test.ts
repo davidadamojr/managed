@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateSequence,
-  main,
+  printRngDemo,
   DEFAULT_SEED,
   DEFAULT_DRAWS,
-} from '../harness/index';
+} from '../harness/rngDemo';
 
 describe('generateSequence', () => {
   it('draws the requested count of floats in [0, 1)', () => {
@@ -29,10 +29,10 @@ describe('generateSequence', () => {
   });
 });
 
-describe('main (headless print)', () => {
+describe('printRngDemo (headless print)', () => {
   it('prints a header, the parameters, and one line per draw', () => {
     const lines: string[] = [];
-    main(DEFAULT_SEED, 3, (line) => lines.push(line));
+    printRngDemo(DEFAULT_SEED, 3, (line) => lines.push(line));
 
     expect(lines[0]).toBe('Managed — headless RNG harness');
     expect(lines[1]).toBe(`seed=${DEFAULT_SEED} draws=3`);
@@ -43,8 +43,8 @@ describe('main (headless print)', () => {
   it('prints identical output on repeat runs (deterministic)', () => {
     const first: string[] = [];
     const second: string[] = [];
-    main(DEFAULT_SEED, 5, (line) => first.push(line));
-    main(DEFAULT_SEED, 5, (line) => second.push(line));
+    printRngDemo(DEFAULT_SEED, 5, (line) => first.push(line));
+    printRngDemo(DEFAULT_SEED, 5, (line) => second.push(line));
     expect(second).toEqual(first);
   });
 });
