@@ -110,11 +110,19 @@ function spendWhileAffordable(
   return plan;
 }
 
-/** Recognize the lowest-morale engineers first — a deterministic morale-support order. */
+/**
+ * Recognize the lowest-morale engineers first — a deterministic morale-support order.
+ * Equal morale is broken by roster position, the same tiebreak attrition uses when two
+ * engineers reach an outcome together. Roster position is also the only tiebreak that
+ * carries no ambient input: a string comparison that consults the host's collation
+ * would make the plan depend on the machine's locale, and uniform starting morale
+ * means ties are the common case, not the rare one.
+ */
 function recognizeLowestMorale(state: GameState): AttentionAction[] {
-  return [...state.roster]
-    .sort((a, b) => a.morale - b.morale || a.id.localeCompare(b.id))
-    .map((engineer) => ({ kind: 'recognize' as const, engineerId: engineer.id }));
+  return state.roster
+    .map((engineer, position) => ({ engineer, position }))
+    .sort((a, b) => a.engineer.morale - b.engineer.morale || a.position - b.position)
+    .map(({ engineer }) => ({ kind: 'recognize' as const, engineerId: engineer.id }));
 }
 
 /** True while the roadmap is behind a straight-line pace for the sprint just completed. */

@@ -58,3 +58,19 @@ The one rule the project cannot violate: **simulation state and rules never live
 in the view.** The engine is the single source of truth; the view only renders it.
 That wall is what keeps the engine portable and the test harness honest, and it is
 enforced automatically by `tests/engine-guard.test.ts`.
+
+## The guarantees, and what enforces them
+
+Two properties hold everything else up, so neither is left to example tests alone:
+
+- **Determinism.** Identical state plus identical actions always produce an
+  identical result. `tests/rng-audit.test.ts` reads the source of every file on
+  the simulation path (engine, content, harness) and fails on any clock, unseeded
+  random, environment read, or locale-dependent comparison.
+- **Save exactness.** A resumed run is the run it was, RNG cursor included.
+
+Both are stated as properties over generated runs in
+`tests/determinism-properties.test.ts` — whole seeded runs played through randomly
+generated but legal plans, checked for byte-identical replay, an unmutated input,
+and a save that round-trips and resumes into the same future. The generators live
+in `tests/support/arbitraries.ts`.
