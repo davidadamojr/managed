@@ -3,6 +3,15 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '../../src/view/dom';
 import { createRunStore, type RunStore } from '../../src/view/store';
 import { newRun, type GameState } from '../../src/engine';
+import { planningScreen } from './screens';
+import {
+  completedRun,
+  engineer,
+  failedRun,
+  read,
+  runState,
+  summary,
+} from './fixtures';
 
 const SEED = 20260728;
 
@@ -81,7 +90,7 @@ describe('roadmap bar', () => {
 describe('attention tray', () => {
   it('shows remaining/capacity and lists the three actions', () => {
     const { container, store } = mountRun();
-    const capacity = store.view().attention.capacity;
+    const capacity = planningScreen(store.view()).attention.capacity;
     expect(container.querySelector('.attention-pool')!.textContent).toContain(`${capacity} / ${capacity}`);
 
     const legend = container.querySelectorAll('.attention-legend .attention-action');
@@ -94,7 +103,7 @@ describe('attention tray', () => {
 
   it('renders an exhausted pool plainly — remaining 0, actions disabled, no error', () => {
     const { container, store } = mountRun();
-    const capacity = store.view().attention.capacity;
+    const capacity = planningScreen(store.view()).attention.capacity;
     for (let i = 0; i < capacity; i += 1) store.spend('oneOnOne', 'eng-1');
 
     expect(container.querySelector('.attention-pool')!.textContent).toContain(`0 / ${capacity}`);
@@ -124,7 +133,7 @@ describe('assembling actions through the UI', () => {
     const { container, store } = mountRun();
     const select = container.querySelector<HTMLSelectElement>('.assign-select')!;
     const engineerId = select.dataset.engineerId!;
-    const ticketId = store.view().backlog.tickets[0]!.id;
+    const ticketId = planningScreen(store.view()).backlog.tickets[0]!.id;
 
     select.value = ticketId;
     change(select);
@@ -142,13 +151,20 @@ describe('assembling actions through the UI', () => {
     expect(committed[0]!.kind).toBe(button.dataset.kind);
   });
 
-  it('resolves the sprint and re-reads the advanced state', () => {
+  it('resolves the sprint, shows its summary, and plans on from there', () => {
     const { container, store } = mountRun();
     expect(container.querySelector('.sprint-label')!.textContent).toBe('Sprint 1 of 6');
 
     container.querySelector<HTMLButtonElement>('.resolve-btn')!.click();
 
+    // The resolved sprint is read before the next one is planned.
     expect(store.state().sprintIndex).toBe(1);
+    expect(container.querySelector('.summary-screen')).not.toBeNull();
+    expect(container.querySelector('.sprint-label')!.textContent).toBe('Sprint 1 of 6');
+
+    container.querySelector<HTMLButtonElement>('.advance-btn')!.click();
+
+    expect(container.querySelector('.run-screen')).not.toBeNull();
     expect(container.querySelector('.sprint-label')!.textContent).toBe('Sprint 2 of 6');
     // The read is now the engine's note rather than the pre-first-sprint placeholder.
     expect(container.querySelector('.engineer-read')!.textContent).not.toBe('No read yet.');
@@ -167,16 +183,218 @@ describe('keyboard-operable, native controls', () => {
   });
 });
 
-describe('terminal state', () => {
-  it('replaces the resolve button with a plain notice when the run ends', () => {
+describe('the sprint summary screen', () => {
+  /** Mount a run and resolve one sprint — the screen the store lands on afterwards. */
+  function mountSummary(state: GameState = newRun(SEED)): Mounted {
+    const mounted = mountRun(state);
+    mounted.store.resolve();
+    return mounted;
+  }
+
+  it('renders what shipped, roadmap progress, a read per engineer, and the way onward', () => {
+    const { container, store } = mountSummary();
+
+    expect(container.querySelector('.summary-screen')).not.toBeNull();
+    expect(container.querySelector('.sprint-label')!.textContent).toBe('Sprint 1 of 6');
+    expect(container.querySelector('.shipped')).not.toBeNull();
+    expect(container.querySelector('.roadmap-progress')!.textContent).toContain('shipped');
+    expect(container.querySelectorAll('.read-card')).toHaveLength(store.state().roster.length);
+    expect(container.querySelector('.advance-btn')!.textContent).toBe('Plan the next sprint');
+  });
+
+  it('names each engineer and shows the engine\'s note, never a number', () => {
+    const { container, store } = mountSummary();
+    const name = store.state().roster[0]!.name;
+    const card = container.querySelector('.read-card')!;
+
+    expect(card.querySelector('.read-name')!.textContent).toBe(name);
+    const note = card.querySelector('.read-note')!.textContent!;
+    expect(note).toContain(name);
+    expect(note).not.toMatch(/\d/);
+  });
+
+  it('never renders a raw morale or burnout value', () => {
     const { container, store } = mountRun();
+    store.setCrunch(true);
+    store.resolve();
+    expect(container.textContent).not.toMatch(/morale|burnout/i);
+  });
+
+  it('shows a first summary as state without a direction', () => {
+    const { container } = mountSummary();
+    // One sprint played, so each strip is a single point: where the person is, with no
+    // prior to have moved from.
+    for (const card of container.querySelectorAll('.read-card')) {
+      expect(card.querySelectorAll('.read-point')).toHaveLength(1);
+      expect(card.querySelector('.read-point')!.getAttribute('data-sprint')).toBe('1');
+    }
+  });
+
+  it('shows a slide across sprints as one band per sprint', () => {
+    // Three sprints already read as steady, then dipping, then struggling. The screen
+    // has to make that direction perceptible — a single sprint's note cannot carry it.
+    const { container } = mountSummary(
+      runState({
+        sprintIndex: 3,
+        roster: [engineer('eng-1', 'Priya')],
+        history: [
+          summary(0, [read('eng-1', 'steady')]),
+          summary(1, [read('eng-1', 'dipping')]),
+          summary(2, [read('eng-1', 'struggling')]),
+        ],
+      }),
+    );
+
+    const strip = container.querySelectorAll<HTMLElement>('.read-card .read-point');
+    expect([...strip].map((point) => point.dataset.mood).slice(0, 3)).toEqual([
+      'steady',
+      'dipping',
+      'struggling',
+    ]);
+    expect([...strip].map((point) => point.dataset.sprint).slice(0, 3)).toEqual(['1', '2', '3']);
+  });
+
+  it('renders an at-risk read as a human observation, never an alert', () => {
+    // Burnout already inside the warning band, so the resolved sprint reads at-risk.
+    const { container } = mountSummary(
+      runState({
+        roster: [engineer('eng-1', 'Priya', { burnout: 70 }), engineer('eng-2', 'Sam')],
+      }),
+    );
+
+    const atRisk = container.querySelector('.read-card[data-engineer-id="eng-1"] .read-note')!;
+    expect(atRisk.classList.contains('at-risk')).toBe(true);
+    expect(atRisk.getAttribute('role')).toBe('note');
+    expect(atRisk.textContent).toContain('Priya');
+    expect(atRisk.textContent).not.toMatch(/warning|alert|critical|risk/i);
+    expect(container.querySelector('[role="alert"], .error, .fail')).toBeNull();
+  });
+
+  it('renders the event that fired, in the engine\'s words', () => {
+    const { container, store } = mountRun();
+    // Events are a per-sprint chance, so play on until one surfaces; this seed's run
+    // reaches one well inside its length.
     let guard = 0;
-    while (container.querySelector('.resolve-btn') !== null && guard < 20) {
-      container.querySelector<HTMLButtonElement>('.resolve-btn')!.click();
+    while ((store.state().history ?? []).at(-1)?.event === undefined && guard < 12) {
+      const next =
+        container.querySelector<HTMLButtonElement>('.resolve-btn') ??
+        container.querySelector<HTMLButtonElement>('.advance-btn')!;
+      next.click();
       guard += 1;
     }
+
+    const event = store.state().history!.at(-1)!.event!;
+    expect(container.querySelector('.event-description')!.textContent).toBe(event.description);
+  });
+});
+
+describe('the post-mortem screen', () => {
+  it('names who left, traces the why, and echoes the warnings verbatim', () => {
+    const state = failedRun();
+    const { container } = mountRun(state);
+    const trace = state.departure!;
+
+    expect(container.querySelector('.outcome-screen')!.getAttribute('data-result')).toBe('failed');
+    expect(container.querySelector('.post-mortem .panel-title')!.textContent).toContain('Priya');
+    expect(container.querySelector('.departure-line')!.textContent).toContain('Sprint 4');
+    expect(container.querySelector('.trace-crunch')!.textContent).toContain(
+      String(trace.crunchSprints),
+    );
+    expect(container.querySelector('.trace-warnings')!.textContent).toContain(
+      String(trace.warningsShown),
+    );
+
+    // The evidence is re-shown as it was written, not re-described.
+    const echoes = container.querySelectorAll('.warning-echo');
+    expect(echoes).toHaveLength(2);
+    expect(echoes[0]!.textContent).toContain('Sprint 2');
+    expect(echoes[0]!.textContent).toContain('Priya seems checked out lately.');
+  });
+
+  it('says so plainly when the slide was too fast to warn twice', () => {
+    const base = failedRun();
+    const { container } = mountRun({
+      ...base,
+      departure: { ...base.departure!, warningsShown: 0, fastBurnout: true },
+    });
+    expect(container.querySelector('.trace-fast')!.textContent).toContain('same sprint');
+  });
+
+  it('never prints a raw interior, and is not presented as an error', () => {
+    const { container } = mountRun(failedRun());
+    expect(container.textContent).not.toMatch(/morale|burnout/i);
+    expect(container.querySelector('[role="alert"], .error, .fail')).toBeNull();
+  });
+
+  it('offers a new run that replaces the finished one', () => {
+    const { container, store } = mountRun(failedRun());
+    const button = container.querySelector<HTMLButtonElement>('.new-run-btn')!;
+    expect(button.tagName).toBe('BUTTON');
+
+    button.click();
+    expect(store.state().status).toBe('active');
+    expect(container.querySelector('.run-screen')).not.toBeNull();
+  });
+});
+
+describe('the completion screen', () => {
+  it('renders a plain run summary with no victory fanfare', () => {
+    const { container } = mountRun(completedRun());
+
+    expect(container.querySelector('.outcome-screen')!.getAttribute('data-result')).toBe(
+      'completed',
+    );
+    expect(container.querySelector('.completion-line')!.textContent).toContain('still on the team');
+    expect(container.querySelector('.survivors')!.textContent).toContain('Priya');
+    expect(container.querySelector('.sprints-played')!.textContent).toContain('of 6');
+    expect(container.querySelector('.roadmap-progress')).not.toBeNull();
+    expect(container.textContent).not.toMatch(/congratulations|victory|you win|well done/i);
+    expect(container.querySelector('.post-mortem')).toBeNull();
+  });
+});
+
+describe('playing a whole run through the screens', () => {
+  it('reaches the ending through resolve → summary → advance, on native controls throughout', () => {
+    const { container, store } = mountRun();
+    let guard = 0;
+    while (container.querySelector('.outcome-screen') === null && guard < 20) {
+      const next =
+        container.querySelector<HTMLButtonElement>('.resolve-btn') ??
+        container.querySelector<HTMLButtonElement>('.advance-btn')!;
+      expect(next.tagName).toBe('BUTTON'); // every step forward is focusable
+      next.click();
+      guard += 1;
+    }
+
     expect(store.state().status).toBe('completed');
-    expect(container.querySelector('.resolve-btn')).toBeNull();
-    expect(container.querySelector('.run-ended')!.textContent).toContain('complete');
+    expect(container.querySelector('.outcome-screen')!.getAttribute('data-result')).toBe(
+      'completed',
+    );
+  });
+
+  it('lands on the post-mortem when sustained crunch loses someone', () => {
+    // The delayed echo, played through the UI: crunch everyone on fresh work every
+    // sprint, and the burnout it accrues eventually costs the manager a person.
+    const { container, store } = mountRun();
+    let guard = 0;
+    while (container.querySelector('.outcome-screen') === null && guard < 20) {
+      if (container.querySelector('.resolve-btn') !== null) {
+        const state = store.state();
+        store.setCrunch(true);
+        state.roster.forEach((eng, i) => {
+          const ticket = state.backlog[state.sprintIndex * state.roster.length + i];
+          if (ticket) store.assignTicket(eng.id, ticket.id);
+        });
+        container.querySelector<HTMLButtonElement>('.resolve-btn')!.click();
+      } else {
+        container.querySelector<HTMLButtonElement>('.advance-btn')!.click();
+      }
+      guard += 1;
+    }
+
+    expect(store.state().status).toBe('failed');
+    expect(container.querySelector('.post-mortem')).not.toBeNull();
+    // The loss was foreseeable: the player was shown at least one of these first.
+    expect(container.querySelectorAll('.warning-echo').length).toBeGreaterThanOrEqual(1);
   });
 });

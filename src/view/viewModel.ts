@@ -15,7 +15,13 @@
  * on top of this can leak them. A read reaches the player only as the engine's
  * qualitative note and the at-risk flag.
  *
- * The DOM layer is deliberately dumb below this: it maps a `RunView` to elements and
+ * A run shows one of three screens, and this file projects all three so that single
+ * chokepoint stays single: the planning screen (`RunView`), the sprint summary
+ * (`SummaryView`), and the ending (`OutcomeView`). Which one is showing is presentation
+ * state the store owns — the engine's `status` decides whether a run is over, never
+ * which panel is on screen.
+ *
+ * The DOM layer is deliberately dumb below this: it maps a `ScreenView` to elements and
  * maps events back to store dispatches. Keeping the projection separate from the DOM is
  * also what makes the eventual framework choice cheap — swapping the renderer reuses this
  * projection wholesale.
@@ -28,11 +34,15 @@ import {
   canAffordAttention,
   assignmentFor,
   attentionKindsFor,
+  deriveOutcome,
   type GameState,
-  type RunStatus,
   type TicketStatus,
   type AttentionActionKind,
   type SprintActions,
+  type SprintSummary,
+  type MoodBand,
+  type ReadTrend,
+  type RunResult,
 } from '../engine';
 import { listSkills, type Skill } from '../content';
 
@@ -127,7 +137,6 @@ export interface AttentionTrayView {
  */
 export interface RunView {
   readonly label: string;
-  readonly status: RunStatus;
   readonly roster: readonly RosterCardView[];
   readonly backlog: BacklogView;
   readonly roadmap: RoadmapView;
@@ -143,10 +152,12 @@ export interface RunView {
  */
 const ATTENTION_KINDS: readonly AttentionActionKind[] = ['oneOnOne', 'unblock', 'recognize'];
 
-/** Human sprint label, 1-based and clamped so a completed run reads "Sprint 6 of 6". */
-function sprintLabel(state: GameState): string {
-  const current = Math.min(state.sprintIndex + 1, state.runLength);
-  return `Sprint ${current} of ${state.runLength}`;
+/**
+ * Human sprint label for a zero-based index, clamped so the sprint past the last one —
+ * where a completed run's index sits — still reads "Sprint 6 of 6".
+ */
+function sprintLabel(sprintIndex: number, runLength: number): string {
+  return `Sprint ${Math.min(sprintIndex + 1, runLength)} of ${runLength}`;
 }
 
 /** Project one engineer to a card, pulling their fuzzy read from the last resolved sprint. */
@@ -232,8 +243,7 @@ export function buildRunView(snapshot: RunSnapshot): RunView {
   const progress = roadmapProgress(state.roadmap, state.backlog);
 
   return {
-    label: sprintLabel(state),
-    status: state.status,
+    label: sprintLabel(state.sprintIndex, state.runLength),
     roster: state.roster.map((engineer) => rosterCard(engineer, draft, readNoteById)),
     backlog: backlogView(state, draft),
     roadmap: { completed: progress.completed, total: progress.total },
@@ -241,4 +251,234 @@ export function buildRunView(snapshot: RunSnapshot): RunView {
     attention: attentionTray(snapshot),
     canResolve: state.status === 'active',
   };
+}
+
+/** One sprint in an engineer's read history: the band the player was shown that sprint. */
+export interface ReadHistoryPointView {
+  /** 1-based sprint number, as the player counts them. */
+  readonly sprint: number;
+  readonly mood: MoodBand;
+  readonly atRisk: boolean;
+}
+
+/**
+ * One engineer's read on the summary screen. `note` is the engine's fuzzy observation
+ * for this sprint; `mood` and `trend` are the same read as enums, so a renderer can mark
+ * it without parsing prose. `history` is the strip of bands this engineer has read as
+ * over the run — every one of them already shown to the player in its own sprint, and
+ * gathered here because the crunch→burnout coupling is only legible across sprints.
+ *
+ * The strip does not undercut the 1:1: bands are coarse and lag, while a 1:1 resolves
+ * the actual direction of *this* sprint (`trend`, `sharpened`). Remembering what was
+ * shown is a courtesy; knowing which way someone is heading still has to be bought.
+ */
+export interface EngineerReadView {
+  readonly engineerId: string;
+  readonly name: string;
+  readonly note: string;
+  readonly atRisk: boolean;
+  readonly mood: MoodBand;
+  readonly trend: ReadTrend;
+  readonly sharpened: boolean;
+  /** Oldest first, ending with this sprint. A single point is state without direction. */
+  readonly history: readonly ReadHistoryPointView[];
+}
+
+/** A ticket that reached done this sprint, with the detail that makes it recognizable. */
+export interface ShippedTicketView {
+  readonly id: string;
+  readonly size: number;
+  readonly requiredSkill: Skill;
+}
+
+/** The event that surfaced this sprint: its description and the people it landed on. */
+export interface SprintEventView {
+  readonly description: string;
+  readonly affected: readonly string[];
+}
+
+/**
+ * The sprint summary screen — what shipped, where the roadmap stands, how each person
+ * reads, and any event. `runEnded` says the resolved sprint was the run's last, so the
+ * advance leads to the ending rather than to another planning screen.
+ */
+export interface SummaryView {
+  readonly label: string;
+  readonly shipped: readonly ShippedTicketView[];
+  readonly roadmap: RoadmapView;
+  readonly reads: readonly EngineerReadView[];
+  readonly event: SprintEventView | null;
+  readonly runEnded: boolean;
+}
+
+/** One at-risk read the player was shown, replayed on the post-mortem. */
+export interface WarningEchoView {
+  /** 1-based sprint number the warning appeared in. */
+  readonly sprint: number;
+  readonly note: string;
+}
+
+/**
+ * The why-trace behind a loss. `warningsShown` counts the warnings the player saw with
+ * a sprint left to act on them; `warnings` is the full record shown, whose last entry is
+ * the read from the leaving sprint itself. `fastBurnout` marks the bounded exception
+ * where the slide was steep enough that warning and exit shared a sprint.
+ */
+export interface PostMortemView {
+  readonly engineerName: string;
+  /** 1-based sprint number the engineer left in. */
+  readonly sprint: number;
+  readonly warningsShown: number;
+  readonly crunchSprints: number;
+  readonly fastBurnout: boolean;
+  readonly warnings: readonly WarningEchoView[];
+}
+
+/**
+ * The ending screen. `roadmap` is where the soft target finished — context, never a
+ * win/lose axis — and `survivors` is who is still on the team. `postMortem` is present
+ * exactly when the run ended in a departure.
+ */
+export interface OutcomeView {
+  readonly label: string;
+  readonly result: RunResult;
+  readonly sprintsPlayed: number;
+  readonly runLength: number;
+  readonly roadmap: RoadmapView;
+  readonly survivors: readonly string[];
+  readonly postMortem: PostMortemView | null;
+}
+
+/**
+ * Which screen the run is showing. This is presentation state, not run state: the
+ * engine's `status` decides whether a run is over, while the phase decides whether the
+ * player is currently planning, reading the sprint just resolved, or at the ending.
+ */
+export type ScreenPhase = 'planning' | 'summary' | 'ended';
+
+/** The one screen to render, tagged so a renderer can switch on it exhaustively. */
+export type ScreenView =
+  | { readonly screen: 'planning'; readonly run: RunView }
+  | { readonly screen: 'summary'; readonly summary: SummaryView }
+  | { readonly screen: 'ended'; readonly outcome: OutcomeView };
+
+/**
+ * Gather one engineer's band-per-sprint strip out of retained history. A transpose of
+ * reads the engine already derived — the same reshape the backlog's assignee index is,
+ * with no judgement of its own about what a direction means.
+ */
+function readHistoryFor(
+  history: readonly SprintSummary[],
+  engineerId: string,
+): ReadHistoryPointView[] {
+  const points: ReadHistoryPointView[] = [];
+  for (const summary of history) {
+    const read = summary.reads.find((r) => r.engineerId === engineerId);
+    if (read) {
+      points.push({ sprint: summary.sprintIndex + 1, mood: read.mood, atRisk: read.atRisk });
+    }
+  }
+  return points;
+}
+
+/** Look up the shipped ticket ids against the backlog they came from. */
+function shippedTickets(state: GameState, shipped: readonly string[]): ShippedTicketView[] {
+  const byId = new Map(state.backlog.map((t) => [t.id, t]));
+  return shipped.flatMap((id) => {
+    const ticket = byId.get(id);
+    return ticket ? [{ id, size: ticket.size, requiredSkill: ticket.requiredSkill }] : [];
+  });
+}
+
+/**
+ * Project the summary of the sprint just resolved, or `null` before any has been. Reads
+ * are projected in the engine's own order and carry only its qualitative output — the
+ * note, the band, the direction, the at-risk flag — so the raw interiors stay behind the
+ * wall here exactly as they do on the planning screen.
+ */
+export function buildSummaryView(state: GameState): SummaryView | null {
+  const history = state.history ?? [];
+  const latest = history.at(-1);
+  if (latest === undefined) return null;
+
+  const nameById = new Map(state.roster.map((e) => [e.id, e.name]));
+  const reads = latest.reads.map((read) => ({
+    engineerId: read.engineerId,
+    name: nameById.get(read.engineerId)!,
+    note: read.note,
+    atRisk: read.atRisk,
+    mood: read.mood,
+    trend: read.trend,
+    sharpened: read.sharpened,
+    history: readHistoryFor(history, read.engineerId),
+  }));
+
+  return {
+    label: sprintLabel(latest.sprintIndex, state.runLength),
+    shipped: shippedTickets(state, latest.shipped),
+    roadmap: { completed: latest.roadmap.completed, total: latest.roadmap.total },
+    reads,
+    event: latest.event
+      ? {
+          description: latest.event.description,
+          affected: latest.event.affectedEngineerIds.map((id) => nameById.get(id)!),
+        }
+      : null,
+    runEnded: state.status !== 'active',
+  };
+}
+
+/**
+ * Project the ending, or `null` while the run is still active. The whole account —
+ * result, counts, roadmap, and the why-trace behind a departure — is the engine's
+ * `deriveOutcome`; this only renames sprint indices to the numbers the player counts in
+ * and resolves the surviving roster to names.
+ */
+export function buildOutcomeView(state: GameState): OutcomeView | null {
+  const outcome = deriveOutcome(state);
+  if (outcome === null) return null;
+
+  const postMortem = outcome.postMortem;
+  return {
+    label: sprintLabel(state.sprintIndex, state.runLength),
+    result: outcome.result,
+    sprintsPlayed: outcome.sprintsPlayed,
+    runLength: outcome.runLength,
+    roadmap: { completed: outcome.roadmap.completed, total: outcome.roadmap.total },
+    // The roster keeps whoever quit, so the post-mortem can still speak about the whole
+    // team. Who is *left* is that roster minus them.
+    survivors: state.roster
+      .filter((e) => e.id !== postMortem?.engineerId)
+      .map((e) => e.name),
+    postMortem: postMortem
+      ? {
+          engineerName: postMortem.engineerName,
+          sprint: postMortem.sprintIndex + 1,
+          warningsShown: postMortem.warningsShown,
+          crunchSprints: postMortem.crunchSprints,
+          fastBurnout: postMortem.fastBurnout,
+          warnings: postMortem.warnings.map((w) => ({
+            sprint: w.sprintIndex + 1,
+            note: w.note,
+          })),
+        }
+      : null,
+  };
+}
+
+/**
+ * Build the one screen the phase asks for. A phase with nothing to show — a summary
+ * before any sprint resolved, an ending on a live run — falls back to planning rather
+ * than rendering an empty shell; the store never asks for those, so the fallback is a
+ * guard, not a path.
+ */
+export function buildScreenView(snapshot: RunSnapshot, phase: ScreenPhase): ScreenView {
+  if (phase === 'summary') {
+    const summary = buildSummaryView(snapshot.state);
+    if (summary !== null) return { screen: 'summary', summary };
+  } else if (phase === 'ended') {
+    const outcome = buildOutcomeView(snapshot.state);
+    if (outcome !== null) return { screen: 'ended', outcome };
+  }
+  return { screen: 'planning', run: buildRunView(snapshot) };
 }

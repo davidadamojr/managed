@@ -47,7 +47,27 @@
       .ticket-list, .attention-legend { list-style: none; padding: 0; margin: 0; }
       .attention-legend { display: flex; gap: 1rem; }
       .attention-action.spent { opacity: 0.5; }
-      .resolve-btn { font-size: 1rem; padding: 0.5rem 1rem; }
+      .resolve-btn, .advance-btn, .new-run-btn { font-size: 1rem; padding: 0.5rem 1rem; }
+
+      /* Summary and ending screens. The read strip is the one piece of layout doing
+         real work: a slide is only perceptible when its sprints sit side by side. */
+      .read-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+        gap: 0.75rem;
+      }
+      .read-card { border: 1px solid currentColor; border-radius: 4px; padding: 0.5rem; }
+      .read-name { margin: 0 0 0.25rem; font-size: 1rem; }
+      .read-note { margin: 0 0 0.5rem; }
+      .read-note.at-risk { font-weight: 600; }
+      .read-history { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; list-style: none; padding: 0; margin: 0; }
+      .read-point { font-size: 0.85rem; opacity: 0.75; }
+      .read-point.at-risk { opacity: 1; font-weight: 600; }
+      .shipped-list, .why-trace, .warning-echoes { list-style: none; padding: 0; margin: 0; }
+      .why-trace li, .warning-echoes li { margin-bottom: 0.25rem; }
+      .echoes-title { font-size: 0.95rem; margin: 0.75rem 0 0.25rem; }
+      .warning-echo { font-style: italic; }
+      .survivors, .sprints-played { margin: 0.25rem 0 0; }
     </style>
   </head>
   <body>

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { buildRunView } from '../../src/view/viewModel';
+import {
+  buildRunView,
+  buildSummaryView,
+  buildOutcomeView,
+  buildScreenView,
+} from '../../src/view/viewModel';
 import {
   newRun,
   tick,
@@ -12,6 +17,14 @@ import {
   type SprintActions,
 } from '../../src/engine';
 import { listSkills } from '../../src/content';
+import {
+  completedRun,
+  engineer,
+  failedRun,
+  read,
+  runState,
+  summary,
+} from './fixtures';
 
 const SEED = 20260728;
 
@@ -171,5 +184,163 @@ describe('crunch and resolvability projection', () => {
 
     const completed: GameState = { ...state, status: 'completed' };
     expect(buildRunView({ state: completed, draft: emptyActions() }).canResolve).toBe(false);
+  });
+});
+
+describe('sprint summary projection', () => {
+  it('has nothing to show before the first sprint resolves', () => {
+    expect(buildSummaryView(newRun(SEED))).toBeNull();
+  });
+
+  it('projects what shipped, roadmap progress, and a named read per engineer', () => {
+    const resolved = tick(newRun(SEED), emptyActions()).state;
+    const view = buildSummaryView(resolved)!;
+    const latest = resolved.history!.at(-1)!;
+
+    expect(view.label).toBe('Sprint 1 of 6');
+    expect(view.roadmap).toEqual(latest.roadmap);
+    expect(view.shipped.map((t) => t.id)).toEqual([...latest.shipped]);
+    for (const shipped of view.shipped) {
+      const source = resolved.backlog.find((t) => t.id === shipped.id)!;
+      expect(shipped.requiredSkill).toBe(source.requiredSkill);
+      expect(shipped.size).toBe(source.size);
+    }
+
+    expect(view.reads).toHaveLength(latest.reads.length);
+    view.reads.forEach((read, i) => {
+      const source = latest.reads[i]!;
+      expect(read.name).toBe(resolved.roster.find((e) => e.id === source.engineerId)!.name);
+      expect(read.note).toBe(source.note);
+      expect(read.mood).toBe(source.mood);
+      expect(read.trend).toBe(source.trend);
+      expect(read.atRisk).toBe(source.atRisk);
+    });
+    expect(view.runEnded).toBe(false);
+  });
+
+  it('carries no raw morale or burnout anywhere in the summary', () => {
+    const resolved = tick(newRun(SEED), setCrunch(emptyActions(), true)).state;
+    const keys = allKeys(buildSummaryView(resolved)!);
+    expect(keys.has('morale')).toBe(false);
+    expect(keys.has('burnout')).toBe(false);
+  });
+
+  it('gives a first sprint one history point — state, with no direction', () => {
+    const resolved = tick(newRun(SEED), emptyActions()).state;
+    for (const read of buildSummaryView(resolved)!.reads) {
+      expect(read.history).toHaveLength(1);
+      expect(read.history[0]!.sprint).toBe(1);
+      expect(read.trend).toBe('unknown'); // no prior sprint to have moved from
+    }
+  });
+
+  it('gathers a band per sprint so a slide is legible across sprints', () => {
+    const state = runState({
+      sprintIndex: 3,
+      roster: [engineer('eng-1', 'Priya')],
+      history: [
+        summary(0, [read('eng-1', 'steady')]),
+        summary(1, [read('eng-1', 'dipping')]),
+        summary(2, [read('eng-1', 'struggling', { atRisk: true })]),
+      ],
+    });
+
+    const strip = buildSummaryView(state)!.reads[0]!.history;
+    expect(strip.map((p) => p.mood)).toEqual(['steady', 'dipping', 'struggling']);
+    expect(strip.map((p) => p.sprint)).toEqual([1, 2, 3]);
+    expect(strip.at(-1)!.atRisk).toBe(true);
+  });
+
+  it('names the people a fired event landed on', () => {
+    const state = runState({
+      sprintIndex: 1,
+      history: [
+        summary(0, [read('eng-1', 'steady'), read('eng-2', 'steady')], {
+          event: {
+            id: 'prod-fire',
+            description: 'Production fell over on a Friday afternoon.',
+            affectedEngineerIds: ['eng-1'],
+          },
+        }),
+      ],
+    });
+
+    expect(buildSummaryView(state)!.event).toEqual({
+      description: 'Production fell over on a Friday afternoon.',
+      affected: ['Priya'],
+    });
+  });
+
+  it('marks the summary of a run that has ended, so the advance leads to the ending', () => {
+    expect(buildSummaryView(completedRun())!.runEnded).toBe(true);
+  });
+});
+
+describe('run outcome projection', () => {
+  it('has nothing to show while the run is active', () => {
+    expect(buildOutcomeView(newRun(SEED))).toBeNull();
+  });
+
+  it('projects a completed run plainly, naming who is still on the team', () => {
+    const view = buildOutcomeView(completedRun())!;
+    expect(view.result).toBe('completed');
+    expect(view.postMortem).toBeNull();
+    expect(view.survivors).toEqual(['Priya', 'Sam']);
+    expect(view.sprintsPlayed).toBe(2);
+    expect(view.runLength).toBe(6);
+  });
+
+  it('projects a loss with the why-trace and the warnings as they were shown', () => {
+    const view = buildOutcomeView(failedRun())!;
+    const postMortem = view.postMortem!;
+
+    expect(view.result).toBe('failed');
+    expect(view.label).toBe('Sprint 4 of 6');
+    expect(postMortem.engineerName).toBe('Priya');
+    expect(postMortem.sprint).toBe(4); // 1-based, as the player counts sprints
+    expect(postMortem.crunchSprints).toBe(3);
+    expect(postMortem.warningsShown).toBe(2);
+    expect(postMortem.fastBurnout).toBe(false);
+    expect(postMortem.warnings.map((w) => w.sprint)).toEqual([2, 3]);
+    expect(postMortem.warnings[0]!.note).toBe('Priya seems checked out lately.');
+  });
+
+  it('leaves the departed engineer out of who is still here', () => {
+    const state = failedRun();
+    expect(state.roster.map((e) => e.name)).toContain('Priya'); // the roster keeps her
+    expect(buildOutcomeView(state)!.survivors).toEqual(['Sam']);
+  });
+
+  it('carries no raw morale or burnout into the ending either', () => {
+    const keys = allKeys(buildOutcomeView(failedRun())!);
+    expect(keys.has('morale')).toBe(false);
+    expect(keys.has('burnout')).toBe(false);
+  });
+});
+
+describe('screen selection', () => {
+  const draft = emptyActions();
+
+  it('builds the planning screen for a run being assembled', () => {
+    const view = buildScreenView({ state: newRun(SEED), draft }, 'planning');
+    expect(view.screen).toBe('planning');
+  });
+
+  it('builds the summary screen for the sprint just resolved', () => {
+    const resolved = tick(newRun(SEED), emptyActions()).state;
+    const view = buildScreenView({ state: resolved, draft }, 'summary');
+    expect(view.screen).toBe('summary');
+  });
+
+  it('builds the ending screen for a finished run', () => {
+    const view = buildScreenView({ state: failedRun(), draft }, 'ended');
+    expect(view.screen).toBe('ended');
+  });
+
+  it('falls back to planning when a phase has nothing to show', () => {
+    // Guards, not paths: the store never asks for a summary before one exists, nor for
+    // an ending while the run is live.
+    expect(buildScreenView({ state: newRun(SEED), draft }, 'summary').screen).toBe('planning');
+    expect(buildScreenView({ state: newRun(SEED), draft }, 'ended').screen).toBe('planning');
   });
 });
