@@ -6,11 +6,17 @@
  * one file, with no logic change. The tuning harness reads these to measure the
  * design's mechanical properties, and the tuning pass rewrites them.
  *
- * Every value below is a CANDIDATE starting point, not a settled truth. They are
- * best-estimates meant to be re-checked against play and revised. The
- * accompanying tests encode the design *intent* behind them (attention stays
- * scarce, the backlog stays over capacity, crunch debt outruns recovery) so a
- * retune that breaks the intent fails loudly.
+ * These values have been measured against the mechanical bars — the echo lands in its
+ * window, the warning always precedes a loss, no strategy both survives and ships for
+ * free, and the roadmap is reachable but not comfortably so. That is a *mechanical*
+ * result, not a verdict on fun: none of it has been confirmed by playing. Every value is
+ * still revisable, and the numbers most likely to move are the roadmap size and the
+ * morale throughput band, which is where the mechanical pressure currently comes from.
+ *
+ * The accompanying tests encode the design *intent* behind these numbers (attention
+ * stays scarce, the backlog stays over capacity, crunch debt outruns recovery, the
+ * at-risk band is wider than a lone crunch) so a retune that breaks the intent fails
+ * loudly rather than quietly changing what the game is about.
  */
 
 export interface TuningConstants {
@@ -49,14 +55,29 @@ export interface TuningConstants {
     };
   };
   readonly backlog: {
-    /** Backlog size as a multiple of what the team can plausibly clear (>1). */
+    /**
+     * Backlog size as a multiple of a nominal ticket-slot count — one ticket per engineer
+     * per sprint. That nominal rate is a construction-time proxy, and it is deliberately
+     * generous: real throughput depends on skill fit, morale, and crunch, none of which
+     * exist yet when the board is built. Measured against real play the team clears about
+     * three-fifths of the nominal rate, so the backlog on screen runs well over twice what
+     * a run can finish. Over-shooting is the safe direction — the scarcity is the point,
+     * and a backlog that turned out to be clearable would quietly remove it.
+     */
     readonly overCapacityRatio: number;
     /** Effort-point band [min, max] for a generated ticket. */
     readonly ticketSizeMin: number;
     readonly ticketSizeMax: number;
   };
   readonly roadmap: {
-    /** Number of roadmap tickets — the soft, never-fail target. */
+    /**
+     * Number of roadmap tickets — the soft, never-fail target. Sized against what the
+     * team actually ships across a whole run (measured, not assumed), so the target sits
+     * just out of comfortable reach: disciplined play lands most of it and occasionally
+     * all of it, while neglect or sustained crunch visibly falls short. A target the team
+     * clears early is the failure mode this guards against — it hands the run back with
+     * sprints to spare and drains the pressure out of every later decision.
+     */
     readonly size: number;
   };
   readonly crunch: {
@@ -102,7 +123,15 @@ export interface TuningConstants {
     };
   };
   readonly morale: {
-    /** Throughput multiplier at morale 0 and at morale 100 (linear between). */
+    /**
+     * Throughput multiplier at morale 0 and at morale 100 (linear between). The band is
+     * deliberately wide: it is the only thing that makes managerial attention pay for
+     * itself in throughput as well as in people. Narrow it and a manager who spends no
+     * attention at all ships almost as much as one who spends it every sprint, which
+     * quietly removes the attention economy from the game. The midpoint is set so a
+     * freshly-started team resolves at roughly 1.0 — morale changes the rate, it does not
+     * secretly rescale the whole game's output.
+     */
     readonly throughputAtZero: number;
     readonly throughputAtHundred: number;
     /**
@@ -204,7 +233,7 @@ const TUNING: TuningConstants = {
     ticketSizeMax: 8,
   },
   roadmap: {
-    size: 5,
+    size: 16,
   },
   crunch: {
     throughputMultiplier: 1.4,
@@ -224,8 +253,8 @@ const TUNING: TuningConstants = {
     },
   },
   morale: {
-    throughputAtZero: 0.7,
-    throughputAtHundred: 1.15,
+    throughputAtZero: 0.4,
+    throughputAtHundred: 1.3,
     response: {
       reasonableLoad: 3,
       idle: -4,

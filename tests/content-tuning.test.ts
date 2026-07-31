@@ -2,22 +2,23 @@ import { describe, it, expect } from 'vitest';
 import { getTuning } from '../src/content/tuning';
 
 // The tuning file is the single source of every game parameter. Two jobs here:
-//  1. Pin the candidate starting values so any retune is a deliberate, reviewed
-//     change (not an accidental drift).
+//  1. Pin the settled values so any retune is a deliberate, reviewed change (not
+//     an accidental drift). "Settled" means measured against the mechanical bars,
+//     not confirmed by play — these are still expected to move.
 //  2. Encode the design *intent* behind those numbers as executable invariants,
 //     so a future retune that violates the intent (e.g. a backlog that fits, an
 //     attrition warning with zero lead time) fails loudly rather than silently
 //     changing what the game is about.
 
-describe('tuning constants — candidate values', () => {
+describe('tuning constants — settled values', () => {
   const t = getTuning();
 
-  it('carries the candidate run shape', () => {
+  it('carries the settled run shape', () => {
     expect(t.run.sprints).toBe(6);
     expect(t.run.teamSize).toBe(4);
   });
 
-  it('carries the candidate roster construction shape', () => {
+  it('carries the settled roster construction shape', () => {
     expect(t.roster.startingMorale).toBe(65);
     expect(t.roster.startingBurnout).toBe(10);
     expect(t.roster.primarySkillMin).toBe(60);
@@ -26,39 +27,39 @@ describe('tuning constants — candidate values', () => {
     expect(t.roster.secondarySkillMax).toBe(65);
   });
 
-  it('carries the candidate ticket sizing', () => {
+  it('carries the settled ticket sizing', () => {
     expect(t.backlog.ticketSizeMin).toBe(3);
     expect(t.backlog.ticketSizeMax).toBe(8);
   });
 
-  it('carries the candidate attention economy', () => {
+  it('carries the settled attention economy', () => {
     expect(t.attention.poolPerSprint).toBe(3);
     expect(t.attention.actionCost.oneOnOne).toBe(1);
     expect(t.attention.actionCost.unblock).toBe(1);
     expect(t.attention.actionCost.recognize).toBe(1);
   });
 
-  it('carries the candidate work-resolution parameters', () => {
+  it('carries the settled work-resolution parameters', () => {
     expect(t.work.baseOutput).toBe(6);
     expect(t.work.poorFitThreshold).toBe(40);
   });
 
-  it('carries the candidate event-firing chance', () => {
+  it('carries the settled event-firing chance', () => {
     expect(t.events.perSprintChance).toBe(0.6);
   });
 
-  it('carries the candidate mood-band floors', () => {
+  it('carries the settled mood-band floors', () => {
     expect(t.reads.moodBands.thriving).toBe(70);
     expect(t.reads.moodBands.steady).toBe(45);
     expect(t.reads.moodBands.dipping).toBe(25);
   });
 
-  it('carries the candidate people and roadmap parameters', () => {
+  it('carries the settled people and roadmap parameters', () => {
     expect(t.backlog.overCapacityRatio).toBe(1.5);
-    expect(t.roadmap.size).toBe(5);
+    expect(t.roadmap.size).toBe(16);
     expect(t.crunch.throughputMultiplier).toBe(1.4);
-    expect(t.morale.throughputAtZero).toBe(0.7);
-    expect(t.morale.throughputAtHundred).toBe(1.15);
+    expect(t.morale.throughputAtZero).toBe(0.4);
+    expect(t.morale.throughputAtHundred).toBe(1.3);
     expect(t.morale.response.reasonableLoad).toBe(3);
     expect(t.morale.response.idle).toBe(-4);
     expect(t.morale.response.overload).toBe(-12);
@@ -127,9 +128,52 @@ describe('tuning constants — design invariants', () => {
     expect(t.backlog.overCapacityRatio).toBeGreaterThan(1);
   });
 
+  it('keeps the roadmap inside the backlog it is drawn from', () => {
+    // The roadmap is a subset of the backlog, selected without replacement. Ask for more
+    // roadmap tickets than the backlog holds and the selection silently returns fewer,
+    // so the target on screen would quietly stop being the target that was configured.
+    const backlogSize = Math.ceil(
+      t.backlog.overCapacityRatio * t.run.teamSize * t.run.sprints,
+    );
+    expect(t.roadmap.size).toBeLessThanOrEqual(backlogSize);
+  });
+
+  it('sizes the roadmap so it cannot be cleared early in the run', () => {
+    // A roadmap finished with sprints to spare drains the pressure out of every later
+    // decision — the target stops arguing with the people, which is the whole game. Even
+    // at the deliberately generous nominal rate of one ticket per engineer per sprint,
+    // the roadmap must still take most of the run. Real throughput is lower than nominal,
+    // so this is a floor on the target's size, not an estimate of it.
+    const nominalPerSprint = t.run.teamSize;
+    const sprintsAtNominalRate = t.roadmap.size / nominalPerSprint;
+    expect(sprintsAtNominalRate).toBeGreaterThan(t.run.sprints * 0.6);
+  });
+
   it('makes morale help throughput, monotonically', () => {
     expect(t.morale.throughputAtZero).toBeLessThan(t.morale.throughputAtHundred);
     expect(t.morale.throughputAtZero).toBeGreaterThan(0);
+  });
+
+  it('makes morale a bigger throughput lever across its range than crunch is', () => {
+    // If mood barely moves output, a manager who spends no attention ships almost as much
+    // as one who spends it every sprint, and the attention economy stops paying for
+    // itself in anything the player can see. Morale is the fast signal they steer by, so
+    // its full range has to outweigh the one-sprint grind of crunch.
+    const moraleRange = t.morale.throughputAtHundred - t.morale.throughputAtZero;
+    const crunchLift = t.crunch.throughputMultiplier - 1;
+    expect(moraleRange).toBeGreaterThan(crunchLift);
+  });
+
+  it('centres the morale band so a fresh team resolves at roughly normal output', () => {
+    // The band decides how much morale *matters*, not how productive the team is overall.
+    // Left off-centre it would quietly rescale every other throughput number — ticket
+    // sizes, base output, the roadmap — while looking like a change to mood alone.
+    const atStart =
+      t.morale.throughputAtZero +
+      (t.roster.startingMorale / 100) *
+        (t.morale.throughputAtHundred - t.morale.throughputAtZero);
+    expect(atStart).toBeGreaterThan(0.9);
+    expect(atStart).toBeLessThan(1.1);
   });
 
   it('makes crunch a real short-term throughput lever', () => {

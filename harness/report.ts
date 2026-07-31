@@ -32,6 +32,15 @@ import {
   type RoadmapResult,
 } from './bars';
 
+/**
+ * Seeds a report plays per strategy when the caller does not say. Sized by what the
+ * numbers need rather than by what is quick: at a few dozen seeds the per-strategy roadmap
+ * averages still wander by several points between sample sizes, which is enough to move a
+ * bar across its threshold and make a settled parameter look marginal. A few hundred runs
+ * costs about a second, so there is no reason to read the design through a noisier lens.
+ */
+export const DEFAULT_SEED_COUNT = 96;
+
 /** How to run the report: how many seeds, from where, under what params and thresholds. */
 export interface ReportOptions {
   readonly seedCount?: number;
@@ -92,7 +101,7 @@ function funHypothesisFor(
  */
 export function runReport(options: ReportOptions = {}): TuningReport {
   const {
-    seedCount = 24,
+    seedCount = DEFAULT_SEED_COUNT,
     baseSeed = HARNESS_BASE_SEED,
     override = {},
     config = DEFAULT_BAR_CONFIG,

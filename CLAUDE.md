@@ -129,16 +129,18 @@ What carries over unchanged: **all four UI states thinking** (as edge-state legi
 ## 8. Tone (Increment 1)
 Mostly deferred — Inc 1 is panels and numbers with almost no prose. Where flavor appears (engineer names, the one event's description, the at-risk warning phrasing): **wry, grounded, recognizable** — the humor of recognition for someone who's done the job. The at-risk warning is the one place tone matters in the MVP; it must read as human observation, not a health-bar alert.
 
-## 9. Increment-1 candidate parameters (starting points, all tunable via §5.7 harness)
-From §6 of the PRD. These are where tuning *starts*, not settled values:
-- Run length: **5–6 sprints** (load-bearing; shortest run that lets one crunch consequence round-trip).
+## 9. Increment-1 parameters (mechanically settled by the tuning pass — see `TUNING.md`)
+From §6 of the PRD, now measured against the §5.7 bars. **`TUNING.md` is the authority on what these values are and why** — it carries the settled table, the sweep behind each decision, and the findings the bars cannot see. Read it before changing any number, and update it when you do. What the PRD locks, and where the pass landed:
+- Run length: **5–6 sprints** (load-bearing; shortest run that lets one crunch consequence round-trip). Settled at **6**: 5 also clears every bar, but lands the loss in the final sprint with no room left to show what backing off would have done.
 - Skills: **four** — `frontend`, `backend`, `infra`, `debugging`.
-- Team size: **3–4** engineers, fixed for the run (no hiring/replacement; a quit ends the run).
-- Attention pool: **3 points/sprint** candidate; actions cost ~1 each; err *too tight* in tuning.
+- Team size: **3–4** engineers, fixed for the run (no hiring/replacement; a quit ends the run). Settled at **4**.
+- Attention pool: **3 points/sprint**; actions cost 1 each; err *too tight* in tuning. Confirmed as the knee — at 4 points the pool reaches the whole team and the choice disappears.
 - Action set (tiny): **1:1**, **Unblock**, **Recognize**.
-- Backlog: intentionally **over capacity** — the scarcity is the point; never auto-balance or warn the player out of the juggle.
-- Roadmap: soft target; **falling behind is painful but never a fail condition.** Attrition is the only fail state.
-- Crunch: per-sprint toggle; raises throughput now, accrues burnout that surfaces later. Bookkeeping is immediate/deterministic; only the *felt* cost is delayed.
+- Backlog: intentionally **over capacity** — the scarcity is the point; never auto-balance or warn the player out of the juggle. Measured at ~2.6× what a run actually finishes.
+- Roadmap: soft target; **falling behind is painful but never a fail condition.** Attrition is the only fail state. Settled at **16**: the pass's one real mis-sizing was a roadmap sized against a sprint's output (5) that every strategy — including the do-nothing one — cleared by sprint 3 of 6.
+- Crunch: per-sprint toggle; raises throughput now, accrues burnout that surfaces later. Bookkeeping is immediate/deterministic; only the *felt* cost is delayed. Measured: selective crunch ships the most of any surviving strategy, while sustained crunch ships the *least* and loses someone every time.
+
+**Settled ≠ validated.** These clear the mechanical bars; none of it has been confirmed by playing, which is the gate below. Carry one standing finding into play: because burnout has exactly one source in Increment 1 and the player controls it directly, a manager who stops crunching at the first at-risk read never loses anyone. That follows from the fairness guarantee rather than from a tuning mistake, and its resolution is the pressure Increments 2–3 add, not a retune.
 
 ## 10. Anti-patterns (do NOT do — §12 of PRD)
 - Do not treat this as a revenue product (no monetization, retention funnels, or engagement mechanics).

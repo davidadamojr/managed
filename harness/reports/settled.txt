@@ -1,0 +1,18 @@
+Managed — mechanical tuning report
+seeds=96 (base 20260728) runLength=6
+overall: PASS (4/4 bars pass)
+
+[PASS] echo-timing — crunch punished (loss 100%), quits land no earlier than sprint 3; mean quit sprint 3.93
+        lossRate=1.00 quitSprints={"3":7,"4":89} premature=0
+[PASS] fairness — 96 loss(es) audited, all foreseeable (0 via the bounded fast-burnout exception)
+        losses=96 unforeseeable=0 fastBurnout=0
+[PASS] dominant-strategy — no free-lunch strategy — every approach trades survival against the roadmap (loss-rate spread 100%)
+        always-crunch  complete=0.00 loss=1.00 roadmap=0.67
+        never-crunch   complete=1.00 loss=0.00 roadmap=0.79
+        balanced       complete=1.00 loss=0.00 roadmap=0.85
+        neglectful     complete=1.00 loss=0.00 roadmap=0.69
+        heeds-warning  complete=1.00 loss=0.00 roadmap=0.85
+[PASS] roadmap-achievability — roadmap tight-but-achievable — mean 85% done, final count reached around sprint 4.81
+        avgFraction=0.85 fullRate=0.08 finalCounts={"7":1,"9":1,"10":2,"11":6,"12":9,"13":19,"14":29,"15":21,"16":8}
+
+HYPOTHESIS (not measured): the delayed echo lands fairly and the juggle asks for real trade-offs — this is the configuration most likely to feel tense. Play it to confirm the loss lands as a punch.

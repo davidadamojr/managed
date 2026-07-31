@@ -32,15 +32,22 @@ seeded runs, and reports whether the design meets its mechanical bars — echo
 timing, fairness, dominant strategy, and roadmap achievability:
 
 ```bash
-npm run harness                          # tuning report on the candidate params
+npm run harness                          # tuning report on the settled params
 npm run harness -- report --seeds 40     # over 40 seeds
 npm run harness -- sweep crunchAccrual   # how the bars respond as one constant changes
+npm run harness -- sweep                 # (no name) lists every sweepable parameter
 npm run harness -- rng 12345 10          # the original RNG determinism smoke
 ```
 
 Because everything under it is seeded and pure, a given seed set and parameter
 set always produce the identical report. The report states what *is*: when the
-candidate constants fail a bar, it says so rather than flattering the design.
+constants fail a bar, it says so rather than flattering the design.
+
+`TUNING.md` explains what the current parameters are, the sweeps behind each
+choice, and what the bars cannot see. `harness/reports/` holds the committed
+output of the two commands above, so a later session can diff against it rather
+than trusting a remembered number. Both are mechanical results — nothing there
+has been validated by playing.
 
 ## Architecture — four layers
 
@@ -50,7 +57,8 @@ src/engine        pure TypeScript simulation. No DOM, no framework, no randomnes
 src/content       data files: skills, names, events, tuning constants. No logic.
 src/view          thin UI that reads game state and dispatches actions. No rules.
 src/persistence   JSON (de)serialization of game state.
-harness           headless Node entry point for running the engine without a UI.
+harness           headless Node entry point for running the engine without a UI,
+                  plus the committed reports backing the current parameters.
 tests             Vitest unit + integration tests.
 ```
 

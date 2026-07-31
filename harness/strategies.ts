@@ -5,7 +5,7 @@
  * view they are allowed to read raw morale and burnout — the point is to exercise the
  * engine under known, repeatable pressure, not to model a human.
  *
- * The four span the space the mechanical bars need to probe:
+ * The five span the space the mechanical bars need to probe:
  *   - always-crunch  — assign everyone and crunch every sprint. The pure crunch pressure
  *                       the echo-timing bar measures: burnout climbs until someone quits.
  *   - never-crunch   — assign, never crunch, and spend attention to prop up morale. The
@@ -16,6 +16,10 @@
  *   - neglectful     — assign work but spend no attention and never crunch. Isolates
  *                       neglect: morale erodes (and throughput with it) yet burnout never
  *                       accrues, so the team survives but ships the least.
+ *   - heeds-warning  — crunch flat out until the at-risk warning appears, then stop for
+ *                       good. The manager the fairness guarantee is written for, and the
+ *                       only strategy that exercises the recovery arc: it measures whether
+ *                       acting on the warning actually saves the engineer.
  *
  * Everything here is deterministic — no RNG, no clock. Choices are a pure function of
  * state, so a given seed and strategy always drive the identical sequence of plans.
@@ -35,7 +39,8 @@ export type StrategyName =
   | 'always-crunch'
   | 'never-crunch'
   | 'balanced'
-  | 'neglectful';
+  | 'neglectful'
+  | 'heeds-warning';
 
 /** A deterministic policy: the run so far in, one sprint's plan out. */
 export type Strategy = (state: GameState) => SprintActions;
@@ -138,6 +143,18 @@ function teamClearOfRisk(state: GameState): boolean {
   return state.roster.every((engineer) => engineer.burnout < atRiskBurnout);
 }
 
+/**
+ * Whether any summary so far has flagged anyone as at-risk. Unlike the other predicates
+ * here this reads the *fuzzy* signal — the same at-risk read the player is shown — rather
+ * than raw burnout, so a strategy built on it represents a line of play a real player can
+ * actually follow. A warning, once seen, is never unseen.
+ */
+function warningEverShown(state: GameState): boolean {
+  return (state.history ?? []).some((summary) =>
+    summary.reads.some((read) => read.atRisk),
+  );
+}
+
 const alwaysCrunch: Strategy = (state) => ({
   assignments: assignByFit(state, true),
   crunch: true,
@@ -168,12 +185,22 @@ const neglectful: Strategy = (state) => ({
   attentionActions: [],
 });
 
+const heedsWarning: Strategy = (state) => {
+  const base: SprintActions = {
+    assignments: assignByFit(state, true),
+    crunch: !warningEverShown(state),
+    attentionActions: [],
+  };
+  return spendWhileAffordable(state, base, recognizeLowestMorale(state));
+};
+
 /** The strategy registry, keyed by name. */
 export const STRATEGIES: Readonly<Record<StrategyName, Strategy>> = {
   'always-crunch': alwaysCrunch,
   'never-crunch': neverCrunch,
   balanced,
   neglectful,
+  'heeds-warning': heedsWarning,
 };
 
 /** All strategy names, in a stable reporting order. */
@@ -182,6 +209,7 @@ export const STRATEGY_NAMES: readonly StrategyName[] = [
   'never-crunch',
   'balanced',
   'neglectful',
+  'heeds-warning',
 ];
 
 /** Fetch a strategy by name, or throw if the name is unknown (a caller-side typo). */
