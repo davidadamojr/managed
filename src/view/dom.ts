@@ -6,12 +6,17 @@
  * bottom of the engine/view wall — below the projection, there is only markup and event
  * wiring.
  *
- * Three screens render here. The planning screen is where a sprint is assembled; the
+ * Four screens render here. The framing is the whole first-time experience — the goal in
+ * a line or two and one way in. The planning screen is where a sprint is assembled; the
  * summary is the legibility surface where a sprint's consequences are read, and where a
  * decline has to become perceptible across sprints; the ending dresses a run that is over.
  * Nothing in the summary or the ending is worked out here — the notes, the bands, the
  * warnings echoed on a post-mortem all arrive already derived, verbatim, because a loss
  * only teaches if the words are the ones the player was actually shown.
+ *
+ * The renderer also holds no words of its own: every label, note, and button caption comes
+ * from the copy data, so the game's voice can be tuned without touching a line of layout.
+ * That import is the one value it takes from another layer — words, never rules.
  *
  * Rendering is a full rebuild on every change. With a four-person team and a small backlog
  * this is trivially fast and keeps the renderer free of diffing logic — the simplest thing
@@ -29,6 +34,14 @@
  */
 
 import type { AttentionActionKind } from '../engine';
+import {
+  attentionActionLabels,
+  controlLabel,
+  framingCopy,
+  panelCopy,
+  screenNote,
+  type PanelKey,
+} from '../content/copy';
 import type { RunStore } from './store';
 import type {
   ScreenView,
@@ -43,12 +56,13 @@ import type {
   PostMortemView,
 } from './viewModel';
 
-/** Player-facing labels for the three managerial actions. */
-const ATTENTION_LABELS: Readonly<Record<AttentionActionKind, string>> = {
-  oneOnOne: '1:1',
-  unblock: 'Unblock',
-  recognize: 'Recognize',
-};
+/**
+ * Player-facing labels for the three managerial actions, taken from the copy data. The
+ * annotation is the point: content spells the action names out for itself rather than
+ * importing the engine, and assigning that record to the engine's own union here is what
+ * fails the build if the two spellings ever drift apart.
+ */
+const ATTENTION_LABELS: Readonly<Record<AttentionActionKind, string>> = attentionActionLabels();
 
 /** Append a mix of nodes and text to a parent, in order. */
 function setChildren(parent: Node, children: readonly (Node | string)[]): void {
@@ -71,19 +85,36 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 /** A titled panel wrapper — the shared shell every section renders into. */
-function panel(className: string, title: string, body: readonly Node[]): HTMLElement {
-  return el('section', `panel ${className}`, [el('h2', 'panel-title', title), ...body]);
+function titledPanel(
+  className: string,
+  title: string,
+  body: readonly Node[],
+  note?: string,
+): HTMLElement {
+  const heading: Node[] = [el('h2', 'panel-title', title)];
+  if (note !== undefined) heading.push(el('p', 'panel-note', note));
+  return el('section', `panel ${className}`, [...heading, ...body]);
+}
+
+/**
+ * A panel that takes its label — and the one line of in-context explanation that goes
+ * with it, where there is one — from the copy data. Keying the copy by the panel's own
+ * class name is what stops a label and the thing it labels from drifting apart.
+ */
+function panel(key: PanelKey, body: readonly Node[]): HTMLElement {
+  const copy = panelCopy(key);
+  return titledPanel(key, copy.title, body, copy.note);
 }
 
 /** The assignment control: a native select of the workable tickets plus an idle option. */
 function assignSelect(card: RosterCardView, view: RunView, store: RunStore): HTMLSelectElement {
   const select = el('select', 'assign-select');
   select.dataset.engineerId = card.id;
-  select.setAttribute('aria-label', `Assign ${card.name}`);
+  select.setAttribute('aria-label', `${controlLabel('assign')} ${card.name}`);
 
   const idle = document.createElement('option');
   idle.value = '';
-  idle.textContent = '— Idle —';
+  idle.textContent = controlLabel('idle');
   select.appendChild(idle);
 
   for (const ticket of view.backlog.tickets) {
@@ -151,7 +182,7 @@ function engineerCard(card: RosterCardView, view: RunView, store: RunStore): HTM
 
 /** The roster panel: one card per engineer. */
 function rosterPanel(view: RunView, store: RunStore): HTMLElement {
-  return panel('roster', 'The Team', [
+  return panel('roster', [
     el('div', 'roster-cards', view.roster.map((card) => engineerCard(card, view, store))),
   ]);
 }
@@ -170,17 +201,22 @@ function backlogPanel(backlog: BacklogView): HTMLElement {
     li.dataset.ticketId = ticket.id;
     return li;
   });
-  return panel('backlog', 'The Backlog', [caption, el('ul', 'ticket-list', items)]);
+  return panel('backlog', [caption, el('ul', 'ticket-list', items)]);
 }
 
-/** The roadmap bar: engine-computed progress toward the soft goal — pressure, not a fail line. */
+/**
+ * The roadmap bar: engine-computed progress toward the soft goal — pressure, not a fail
+ * line. Its note travels with it onto the summary and the ending too, because those are
+ * exactly the screens where a player behind on the roadmap might otherwise read the
+ * shortfall as the reason the run went the way it did.
+ */
 function roadmapPanel(roadmap: RoadmapView): HTMLElement {
   const meter = document.createElement('progress');
   meter.className = 'roadmap-meter';
   meter.max = roadmap.total;
   meter.value = roadmap.completed;
   const label = el('p', 'roadmap-progress', `Roadmap — ${roadmap.completed} / ${roadmap.total} shipped`);
-  return panel('roadmap', 'The Roadmap', [label, meter]);
+  return panel('roadmap', [label, meter]);
 }
 
 /** The attention tray: the pool as remaining/capacity, plus the legend of what it buys. */
@@ -196,8 +232,7 @@ function attentionPanel(tray: AttentionTrayView): HTMLElement {
       return li;
     }),
   );
-  const hint = el('p', 'attention-hint', 'Spend attention on an engineer’s card.');
-  return panel('attention', 'Attention', [pool, legend, hint]);
+  return panel('attention', [pool, legend]);
 }
 
 /** The crunch toggle: the tempting per-sprint lever, as a keyboard-operable checkbox. */
@@ -207,13 +242,16 @@ function crunchPanel(view: RunView, store: RunStore): HTMLElement {
   checkbox.className = 'crunch-toggle';
   checkbox.checked = view.crunch;
   checkbox.addEventListener('change', () => store.setCrunch(checkbox.checked));
-  const label = el('label', 'crunch-label', [checkbox, document.createTextNode(' Crunch this sprint')]);
-  return panel('crunch', 'Crunch', [label]);
+  const label = el('label', 'crunch-label', [
+    checkbox,
+    document.createTextNode(` ${controlLabel('crunch')}`),
+  ]);
+  return panel('crunch', [label]);
 }
 
 /** The commit control. Disabled rather than hidden if a run somehow cannot tick. */
 function resolvePanel(view: RunView, store: RunStore): HTMLElement {
-  const button = el('button', 'resolve-btn', 'Resolve sprint');
+  const button = el('button', 'resolve-btn', controlLabel('resolve'));
   button.type = 'button';
   button.disabled = !view.canResolve;
   button.addEventListener('click', () => store.resolve());
@@ -236,10 +274,25 @@ function actionButton(className: string, label: string, onClick: () => void): HT
   return button;
 }
 
+/**
+ * The opening screen: the game's name, the goal in a line or two, and one way in. It is
+ * the whole first-time experience — there is no tutorial, because the audience is fluent
+ * and the first sprint's summary teaches the loop better than any walkthrough would. It
+ * reads nothing about the run behind it; the copy is the screen.
+ */
+function renderFraming(store: RunStore): HTMLElement {
+  const copy = framingCopy();
+  return el('div', 'framing-screen', [
+    el('h1', 'framing-title', copy.title),
+    el('div', 'framing-lines', copy.lines.map((line) => el('p', 'framing-line', line))),
+    actionButton('start-btn', controlLabel('start'), () => store.beginRun()),
+  ]);
+}
+
 /** Assemble the whole main run screen for one view. Pure structure; all logic is upstream. */
 function renderRun(view: RunView, store: RunStore): HTMLElement {
   return el('div', 'run-screen', [
-    header(view.label, 'Planning'),
+    header(view.label, screenNote('planning')),
     rosterPanel(view, store),
     backlogPanel(view.backlog),
     roadmapPanel(view.roadmap),
@@ -252,16 +305,14 @@ function renderRun(view: RunView, store: RunStore): HTMLElement {
 /** What reached done this sprint, or a plain line when nothing did. */
 function shippedPanel(summary: SummaryView): HTMLElement {
   if (summary.shipped.length === 0) {
-    return panel('shipped', 'What Shipped', [
-      el('p', 'shipped-empty', 'Nothing reached done this sprint.'),
-    ]);
+    return panel('shipped', [el('p', 'shipped-empty', 'Nothing reached done this sprint.')]);
   }
   const items = summary.shipped.map((ticket) => {
     const li = el('li', 'shipped-ticket', `${ticket.id} · ${ticket.requiredSkill} · ${ticket.size}pt`);
     li.dataset.ticketId = ticket.id;
     return li;
   });
-  return panel('shipped', 'What Shipped', [el('ul', 'shipped-list', items)]);
+  return panel('shipped', [el('ul', 'shipped-list', items)]);
 }
 
 /**
@@ -300,24 +351,22 @@ function eventPanel(summary: SummaryView): HTMLElement[] {
   if (summary.event.affected.length > 0) {
     lines.push(el('p', 'event-affected', `Landed on: ${summary.event.affected.join(', ')}`));
   }
-  return [panel('event', 'What Else Happened', lines)];
+  return [panel('event', lines)];
 }
 
 /** The sprint summary screen — the run's legibility surface, read between sprints. */
 function renderSummary(summary: SummaryView, store: RunStore): HTMLElement {
   const advance = actionButton(
     'advance-btn',
-    summary.runEnded ? 'See how it ended' : 'Plan the next sprint',
+    controlLabel(summary.runEnded ? 'seeEnding' : 'planNext'),
     () => store.advance(),
   );
 
   return el('div', 'summary-screen', [
-    header(summary.label, 'Sprint summary'),
+    header(summary.label, screenNote('summary')),
     shippedPanel(summary),
     roadmapPanel(summary.roadmap),
-    panel('reads', 'The Team', [
-      el('div', 'read-cards', summary.reads.map(readCard)),
-    ]),
+    panel('reads', [el('div', 'read-cards', summary.reads.map(readCard))]),
     ...eventPanel(summary),
     el('section', 'panel advance', [advance]),
   ]);
@@ -358,7 +407,9 @@ function postMortemPanel(postMortem: PostMortemView): HTMLElement {
     }),
   );
 
-  return panel('post-mortem', `${postMortem.engineerName} left the team`, [
+  // The one panel whose title is not a label but a fact about this run, so it is titled
+  // directly rather than out of the copy data.
+  return titledPanel('post-mortem', `${postMortem.engineerName} left the team`, [
     el('p', 'departure-line', `Handed in notice at the end of Sprint ${postMortem.sprint}.`),
     trace,
     el('h3', 'echoes-title', 'What you were told'),
@@ -368,7 +419,7 @@ function postMortemPanel(postMortem: PostMortemView): HTMLElement {
 
 /** The completion panel — plainly stated. A prototype has not earned a victory screen. */
 function completionPanel(outcome: OutcomeView): HTMLElement {
-  return panel('completion', 'The run is over', [
+  return panel('completion', [
     el('p', 'completion-line', 'Everyone who started is still on the team.'),
     el('p', 'survivors', `Still here: ${outcome.survivors.join(', ')}`),
   ]);
@@ -381,14 +432,14 @@ function renderOutcome(outcome: OutcomeView, store: RunStore): HTMLElement {
       ? postMortemPanel(outcome.postMortem)
       : completionPanel(outcome);
 
-  const facts = panel('run-facts', 'The Run', [
+  const facts = panel('run-facts', [
     el('p', 'sprints-played', `Sprints played — ${outcome.sprintsPlayed} of ${outcome.runLength}`),
   ]);
 
-  const newRun = actionButton('new-run-btn', 'Start a new run', () => store.startNewRun());
+  const newRun = actionButton('new-run-btn', controlLabel('newRun'), () => store.startNewRun());
 
   const screen = el('div', 'outcome-screen', [
-    header(outcome.label, outcome.result === 'completed' ? 'Run complete' : 'Run over'),
+    header(outcome.label, screenNote(outcome.result)),
     ending,
     facts,
     roadmapPanel(outcome.roadmap),
@@ -401,6 +452,8 @@ function renderOutcome(outcome: OutcomeView, store: RunStore): HTMLElement {
 /** Render whichever screen the store is showing. */
 function renderScreen(view: ScreenView, store: RunStore): HTMLElement {
   switch (view.screen) {
+    case 'framing':
+      return renderFraming(store);
     case 'planning':
       return renderRun(view.run, store);
     case 'summary':

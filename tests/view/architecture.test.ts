@@ -20,22 +20,43 @@ const renderer = stripComments(
   readFileSync(join(here, '..', '..', 'src', 'view', 'dom.ts'), 'utf8'),
 );
 
-/** Every `from '<module>'` import statement in the renderer, with its full text. */
-function importsFrom(source: string, module: string): string[] {
-  const pattern = new RegExp(`import[^;]*?from\\s+'${module}';`, 'g');
-  return source.match(pattern) ?? [];
+/** The module path of the one import the renderer is allowed to take values from. */
+const COPY_MODULE = '../content/copy';
+
+interface ImportStatement {
+  readonly module: string;
+  readonly typeOnly: boolean;
+}
+
+/** Every import statement in the renderer, with the module it names. */
+function imports(source: string): ImportStatement[] {
+  const statements = source.match(/import[^;]*?from\s+'[^']+';/g) ?? [];
+  return statements.map((statement) => ({
+    module: /from\s+'([^']+)';/.exec(statement)![1]!,
+    typeOnly: statement.startsWith('import type'),
+  }));
+}
+
+/** Imports reaching out of the view, into the engine or the content layers. */
+function crossLayerImports(): ImportStatement[] {
+  return imports(renderer).filter((i) => i.module.startsWith('../'));
 }
 
 describe('the renderer derives nothing', () => {
-  it('imports only types from the engine and content layers', () => {
-    const layerImports = [
-      ...importsFrom(renderer, '\\.\\./engine'),
-      ...importsFrom(renderer, '\\.\\./content'),
-    ];
-    expect(layerImports.length).toBeGreaterThan(0); // the guard is actually looking at something
-    for (const statement of layerImports) {
-      expect(statement.startsWith('import type')).toBe(true);
+  it('imports only types from the engine layer', () => {
+    const engineImports = crossLayerImports().filter((i) => i.module.startsWith('../engine'));
+    expect(engineImports.length).toBeGreaterThan(0); // the guard is actually looking at something
+    for (const statement of engineImports) {
+      expect(statement.typeOnly, `${statement.module} is imported for its values`).toBe(true);
     }
+  });
+
+  it('takes values from one place only: the words it is meant to render', () => {
+    // The renderer holds no copy of its own, so it has to read the labels from somewhere.
+    // Words are the single exception to "types only" across a layer boundary, and it is a
+    // narrow one: a string table cannot smuggle a game rule into the view.
+    const valueImports = crossLayerImports().filter((i) => !i.typeOnly);
+    expect(valueImports.map((i) => i.module)).toEqual([COPY_MODULE]);
   });
 
   it('never names a GameState — it only ever sees view models', () => {

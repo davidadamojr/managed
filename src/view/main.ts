@@ -7,8 +7,9 @@
  *
  * Startup resumes a saved run if one exists and otherwise starts a fresh seeded run. The
  * seed comes from a `?seed=` query param or a fixed default, so the app stays reproducible
- * by eye with no ambient nondeterminism even at this edge. A richer new-run/first-time
- * flow is a later prompt; this is the minimum that makes the screen playable.
+ * by eye with no ambient nondeterminism even at this edge. Whether a save was found is
+ * also the answer to "is this player new", which is what decides if the framing screen
+ * shows — a question about this browser, so it belongs at this edge and nowhere deeper.
  *
  * This module is deliberately not unit-tested: it is glue over already-tested parts, and
  * its only logic is choosing between resume and new. It is typechecked by the view config
@@ -31,10 +32,23 @@ function chosenSeed(): number {
   return Number.isFinite(parsed) ? parsed : DEFAULT_SEED;
 }
 
-/** Resume the saved run if there is one; otherwise begin a fresh seeded run. */
-function initialState(): GameState {
+/** What the app opens with: the saved run if there is one, otherwise a fresh seeded run. */
+interface Opening {
+  readonly state: GameState;
+  /**
+   * Whether this browser had a run already. It is the whole test for "has this player
+   * been here before" — a save exists, so they have, and they get straight back to play
+   * with no framing screen to dismiss. A player who reads the framing and closes the tab
+   * without starting is counted as returning, which errs toward never nagging.
+   */
+  readonly returning: boolean;
+}
+
+function opening(): Opening {
   const loaded = loadRun(window.localStorage);
-  return loaded.ok ? loaded.state : newRun(chosenSeed());
+  return loaded.ok
+    ? { state: loaded.state, returning: true }
+    : { state: newRun(chosenSeed()), returning: false };
 }
 
 /** Wire the store to persistence and the DOM, then mount the run screen. */
@@ -42,7 +56,9 @@ function bootstrap(): void {
   const container = document.getElementById('app');
   if (container === null) throw new Error('view mount point #app not found');
 
-  const store = createRunStore(initialState(), {
+  const { state: initial, returning } = opening();
+  const store = createRunStore(initial, {
+    openWithFraming: !returning,
     onCommit: (state) => {
       saveRun(window.localStorage, state);
     },

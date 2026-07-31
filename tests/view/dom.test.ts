@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '../../src/view/dom';
 import { createRunStore, type RunStore } from '../../src/view/store';
 import { newRun, type GameState } from '../../src/engine';
+import { controlLabel, panelCopy, screenNote } from '../../src/content/copy';
 import { planningScreen } from './screens';
 import {
   completedRun,
@@ -168,6 +169,56 @@ describe('assembling actions through the UI', () => {
     expect(container.querySelector('.sprint-label')!.textContent).toBe('Sprint 2 of 6');
     // The read is now the engine's note rather than the pre-first-sprint placeholder.
     expect(container.querySelector('.engineer-read')!.textContent).not.toBe('No read yet.');
+  });
+});
+
+describe('in-context labels', () => {
+  /** The panel labels the planning screen is meant to teach by naming. */
+  const NAMED_PANELS = ['roster', 'backlog', 'roadmap', 'attention', 'crunch'] as const;
+
+  it('names every panel and explains it in one line, from the copy data', () => {
+    const { container } = mountRun();
+
+    for (const key of NAMED_PANELS) {
+      const section = container.querySelector(`.panel.${key}`);
+      expect(section, `no ${key} panel on the planning screen`).not.toBeNull();
+      expect(section!.querySelector('.panel-title')!.textContent).toBe(panelCopy(key).title);
+      expect(section!.querySelector('.panel-note')!.textContent).toBe(panelCopy(key).note);
+    }
+  });
+
+  it('labels the controls with the words the copy gives them', () => {
+    const { container } = mountRun();
+
+    expect(container.querySelector('.resolve-btn')!.textContent).toBe(controlLabel('resolve'));
+    expect(container.querySelector('.crunch-label')!.textContent).toContain(controlLabel('crunch'));
+    expect(container.querySelector('.assign-select option')!.textContent).toBe(controlLabel('idle'));
+    expect(container.querySelector('.assign-select')!.getAttribute('aria-label')).toContain(
+      controlLabel('assign'),
+    );
+    expect(container.querySelector('.header-note')!.textContent).toBe(screenNote('planning'));
+  });
+
+  it('labels the sprint summary as what it is', () => {
+    const { container, store } = mountRun();
+    store.resolve();
+
+    expect(container.querySelector('.header-note')!.textContent).toBe(screenNote('summary'));
+    expect(container.querySelector('.panel.reads .panel-title')!.textContent).toBe(
+      panelCopy('reads').title,
+    );
+    expect(container.querySelector('.panel.reads .panel-note')!.textContent).toBe(
+      panelCopy('reads').note,
+    );
+  });
+
+  it('keeps saying that the roadmap is not the thing that ends a run', () => {
+    // The label follows the bar onto the ending screen, where the temptation to read a
+    // shortfall as the cause of the loss is strongest.
+    const { container } = mountRun(failedRun());
+    expect(container.querySelector('.panel.roadmap .panel-note')!.textContent).toBe(
+      panelCopy('roadmap').note,
+    );
   });
 });
 

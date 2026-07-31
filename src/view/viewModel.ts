@@ -352,12 +352,19 @@ export interface OutcomeView {
 /**
  * Which screen the run is showing. This is presentation state, not run state: the
  * engine's `status` decides whether a run is over, while the phase decides whether the
- * player is currently planning, reading the sprint just resolved, or at the ending.
+ * player is being shown the framing, planning, reading the sprint just resolved, or at
+ * the ending.
  */
-export type ScreenPhase = 'planning' | 'summary' | 'ended';
+export type ScreenPhase = 'framing' | 'planning' | 'summary' | 'ended';
 
-/** The one screen to render, tagged so a renderer can switch on it exhaustively. */
+/**
+ * The one screen to render, tagged so a renderer can switch on it exhaustively. The
+ * framing carries no data: it is the goal in a line or two, which is copy rather than
+ * anything projected out of a run, so there is nothing for this projection to say about
+ * it beyond that it is showing.
+ */
 export type ScreenView =
+  | { readonly screen: 'framing' }
   | { readonly screen: 'planning'; readonly run: RunView }
   | { readonly screen: 'summary'; readonly summary: SummaryView }
   | { readonly screen: 'ended'; readonly outcome: OutcomeView };
@@ -473,6 +480,9 @@ export function buildOutcomeView(state: GameState): OutcomeView | null {
  * guard, not a path.
  */
 export function buildScreenView(snapshot: RunSnapshot, phase: ScreenPhase): ScreenView {
+  // The framing has no data behind it, so there is nothing to fall back from.
+  if (phase === 'framing') return { screen: 'framing' };
+
   if (phase === 'summary') {
     const summary = buildSummaryView(snapshot.state);
     if (summary !== null) return { screen: 'summary', summary };

@@ -22,14 +22,23 @@ The view is three layers, each thinner than the one above it:
 - **`dom.ts`** — maps a `ScreenView` to elements and element events back to store
   dispatches. Full rebuild per change; native controls (`select`, `button`, checkbox,
   `progress`) keep every action keyboard-operable. No `GameState`, no engine calls, no
-  rules — a guard test (`tests/view/architecture.test.ts`) holds that line.
+  rules — a guard test (`tests/view/architecture.test.ts`) holds that line. It holds no
+  *words* either: every label, note, and button caption comes from `src/content/copy.ts`,
+  the one module it imports for values rather than types.
 
-## The three screens
+## The four screens
 
-A run cycles `planning → summary → planning …`, and ends on `ended`:
+A run opens on `framing` (first visit only), then cycles `planning → summary → planning …`,
+and ends on `ended`:
 
+- **Framing** — the whole first-time experience: the goal in a line or two, and one button
+  into the run. No tutorial, because the audience is fluent and the first sprint's summary
+  teaches the loop. It shows only for a player with nothing saved, so a returning player
+  has nothing to dismiss; the composition root answers that question (a save exists) and
+  the store just obeys the flag.
 - **Planning** (`RunView`) — the roster, the over-capacity backlog, the roadmap, the
-  attention tray, the crunch toggle, and Resolve.
+  attention tray, the crunch toggle, and Resolve. Each panel carries its label and one line
+  of in-context explanation — labels, not a walkthrough.
 - **Sprint summary** (`SummaryView`) — what shipped, roadmap progress, the fuzzy read per
   engineer with the band-per-sprint strip behind it, and any event that fired. The strip is
   the reason this screen exists: the crunch→burnout→attrition coupling is only legible

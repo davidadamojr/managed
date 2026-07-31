@@ -55,6 +55,13 @@ export interface RunStoreOptions {
    * no `Math.random()` leak in at this edge either.
    */
   readonly nextRun?: (previous: GameState) => GameState;
+  /**
+   * Whether to show the framing screen ahead of the run. The composition root sets this
+   * for a player with nothing saved; a returning player gets no screen to dismiss. The
+   * store only obeys the flag — who counts as new is a question about the browser, and it
+   * is answered where the browser lives.
+   */
+  readonly openWithFraming?: boolean;
 }
 
 /**
@@ -81,6 +88,8 @@ export interface RunStore {
   spend(kind: AttentionActionKind, engineerId: string): boolean;
   setCrunch(crunch: boolean): void;
   toggleCrunch(): void;
+  /** Leave the framing and start playing. The only way out of that screen. */
+  beginRun(): void;
   /** Resolve the sprint: dispatch a tick, adopt the next state, reset the plan, persist. */
   resolve(): void;
   /** Leave the summary — on to the next sprint, or to the ending if the run is over. */
@@ -97,10 +106,19 @@ function successorRun(previous: GameState): GameState {
 }
 
 /**
+ * Which screen a store opens on. A terminal state opens at its ending rather than at a
+ * planning screen it can do nothing with — what a resumed save of a finished run needs —
+ * and a live run opens at the framing only when the caller asked for it, since a run that
+ * is already over has nothing left to frame.
+ */
+function openingPhase(initial: GameState, withFraming: boolean): ScreenPhase {
+  if (initial.status !== 'active') return 'ended';
+  return withFraming ? 'framing' : 'planning';
+}
+
+/**
  * Create a run store over an initial state. The draft starts empty — a fresh sprint plan
- * with nobody assigned, no crunch, no attention spent. A state that is already terminal
- * opens at its ending rather than at a planning screen it can do nothing with, which is
- * what a resumed save of a finished run needs.
+ * with nobody assigned, no crunch, no attention spent.
  */
 export function createRunStore(
   initial: GameState,
@@ -108,7 +126,7 @@ export function createRunStore(
 ): RunStore {
   let state = initial;
   let draft = emptyActions();
-  let phase: ScreenPhase = initial.status === 'active' ? 'planning' : 'ended';
+  let phase: ScreenPhase = openingPhase(initial, options.openWithFraming ?? false);
   const nextRun = options.nextRun ?? successorRun;
   const listeners = new Set<RunListener>();
 
@@ -148,6 +166,12 @@ export function createRunStore(
 
     toggleCrunch() {
       draft = toggleCrunchAction(draft);
+      notify();
+    },
+
+    beginRun() {
+      if (phase !== 'framing') return;
+      phase = 'planning';
       notify();
     },
 
