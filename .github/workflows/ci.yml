@@ -1,0 +1,31 @@
+# The regression gate. The suite it runs is the only thing standing between a later
+# increment and a silently-broken delayed echo, so it runs on every push and every pull
+# request rather than on demand.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check (engine and view)
+        run: npm run typecheck
+
+      # Includes the full-run integration test: the echo lands in its window and the
+      # fairness guarantee holds. Everything here is seeded, so a CI failure reproduces
+      # locally from the same seed with no flake to chase.
+      - name: Test
+        run: npm test

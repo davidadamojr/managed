@@ -82,3 +82,19 @@ Both are stated as properties over generated runs in
 generated but legal plans, checked for byte-identical replay, an unmutated input,
 and a save that round-trips and resumes into the same future. The generators live
 in `tests/support/arbitraries.ts`.
+
+## The core coupling, guarded
+
+The one thing the game exists to produce is a **delayed echo**: a crunch decision
+that comes back, sprints later, as a person you were warned about and then lost.
+`tests/full-run-integration.test.ts` plays whole seeded runs through the real
+`tick` and asserts that the echo is **present** (a crunch-heavy run ends in a
+departure, in a window late enough to have been read and early enough to leave the
+run somewhere to go) and **fair** (every loss, under every scripted manager, was
+preceded by an at-risk read — and a manager who acts on it keeps the whole team).
+
+It proves the coupling is there. It cannot prove the loss *hurts* — that is the
+gate the builder clears by playing, and no assertion reaches it.
+
+CI (`.github/workflows/ci.yml`) runs the type-check and the whole suite on every
+push and pull request, so a later increment cannot quietly break the echo.
